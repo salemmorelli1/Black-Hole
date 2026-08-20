@@ -1,0 +1,17 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it using the metadata below."
+title: "Black Hole Information Dynamics"
+type: software
+version: 0.1.0
+date-released: 2026-08-20
+authors:
+  - family-names: Morelli
+    given-names: Salem
+license: MIT
+keywords:
+  - black-hole evaporation
+  - Fisher information
+  - marked point processes
+  - stochastic differential equations
+  - transfer entropy
+  - PyTorch
