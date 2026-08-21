@@ -1,0 +1,582 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Interactive research laboratory comparing discrete packet emission and continuous diffusion models of black-hole evaporation.">
+  <meta name="theme-color" content="#05070b">
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="Black Hole Information Dynamics">
+  <meta property="og:description" content="Packets · Fields · Fisher Information">
+  <meta property="og:image" content="https://salemmorelli1.github.io/Black-Hole/og.png">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Black Hole Information Dynamics">
+  <meta name="twitter:description" content="Packets · Fields · Fisher Information">
+  <meta name="twitter:image" content="https://salemmorelli1.github.io/Black-Hole/og.png">
+  <title>Black Hole Information Dynamics</title>
+  <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #05070b;
+      --panel: rgba(13, 17, 26, 0.92);
+      --panel-2: rgba(18, 23, 35, 0.94);
+      --line: rgba(219, 229, 242, 0.13);
+      --line-strong: rgba(219, 229, 242, 0.24);
+      --text: #f6f8fb;
+      --muted: #aab3c2;
+      --muted-2: #778195;
+      --amber: #ffb648;
+      --cyan: #78dce8;
+      --violet: #b89cff;
+      --green: #67d7a7;
+      --radius: 20px;
+      --shadow: 0 24px 70px rgba(0, 0, 0, 0.32);
+    }
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      color: var(--text);
+      background:
+        radial-gradient(circle at 78% -8%, rgba(102, 75, 170, 0.19), transparent 34rem),
+        radial-gradient(circle at 6% 24%, rgba(29, 117, 132, 0.12), transparent 30rem),
+        linear-gradient(145deg, #030407, var(--bg) 48%, #080a10);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      line-height: 1.55;
+    }
+    body::before {
+      content: "";
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      opacity: 0.28;
+      background-image:
+        radial-gradient(circle at 12% 18%, #fff 0 1px, transparent 1.5px),
+        radial-gradient(circle at 71% 32%, #fff 0 1px, transparent 1.5px),
+        radial-gradient(circle at 34% 76%, #fff 0 1px, transparent 1.5px),
+        radial-gradient(circle at 89% 81%, #fff 0 1px, transparent 1.5px);
+      background-size: 280px 280px, 360px 360px, 430px 430px, 520px 520px;
+    }
+    a { color: inherit; text-decoration: none; }
+    button, input { font: inherit; }
+    button { color: inherit; }
+    button:focus-visible, a:focus-visible, input:focus-visible {
+      outline: 3px solid rgba(120, 220, 232, 0.65);
+      outline-offset: 3px;
+    }
+    .shell { position: relative; width: min(1540px, calc(100% - 32px)); margin: 0 auto; padding: 22px 0 52px; }
+    .topbar { display: flex; align-items: center; justify-content: space-between; gap: 20px; padding: 4px 0 18px; border-bottom: 1px solid var(--line); }
+    .brand { display: flex; align-items: center; gap: 12px; font-weight: 760; letter-spacing: -0.02em; }
+    .brand-mark { width: 28px; aspect-ratio: 1; border: 1px solid var(--line-strong); border-radius: 50%; background: radial-gradient(circle, #000 0 38%, var(--amber) 40% 45%, transparent 48%); box-shadow: 0 0 28px rgba(255, 182, 72, 0.22); }
+    .top-actions { display: flex; gap: 9px; flex-wrap: wrap; justify-content: flex-end; }
+    .button { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 40px; padding: 9px 14px; border: 1px solid var(--line-strong); border-radius: 999px; background: rgba(18, 23, 35, 0.86); font-weight: 720; font-size: 0.88rem; cursor: pointer; transition: transform 150ms ease, border-color 150ms ease, background 150ms ease; }
+    .button:hover { transform: translateY(-1px); border-color: rgba(120, 220, 232, 0.54); }
+    .button.primary { color: #111318; border-color: transparent; background: linear-gradient(135deg, #ffe0a3, var(--amber)); }
+    .hero { display: grid; grid-template-columns: minmax(0, 1.24fr) minmax(340px, 0.76fr); align-items: center; gap: clamp(30px, 6vw, 90px); min-height: 540px; padding: 70px 0 48px; }
+    .eyebrow { display: inline-flex; align-items: center; gap: 8px; margin: 0 0 18px; color: var(--cyan); font-size: 0.74rem; font-weight: 840; letter-spacing: 0.19em; text-transform: uppercase; }
+    .eyebrow::before { content: ""; width: 28px; height: 1px; background: currentColor; }
+    h1 { max-width: 940px; margin: 0; font-family: Georgia, "Times New Roman", serif; font-size: clamp(3.5rem, 7.7vw, 8rem); font-weight: 500; letter-spacing: -0.064em; line-height: 0.88; }
+    h1 em { color: var(--amber); font-style: italic; font-weight: 400; }
+    .lead { max-width: 780px; margin: 26px 0 0; color: var(--muted); font-size: clamp(1rem, 1.5vw, 1.18rem); }
+    .hero-meta { display: flex; flex-wrap: wrap; gap: 9px; margin-top: 28px; }
+    .pill { display: inline-flex; align-items: center; gap: 7px; padding: 7px 11px; border: 1px solid var(--line); border-radius: 999px; color: var(--muted); background: rgba(9, 12, 18, 0.7); font-size: 0.78rem; font-weight: 720; white-space: nowrap; }
+    .pill::before { content: ""; width: 6px; aspect-ratio: 1; border-radius: 50%; background: var(--muted-2); }
+    .pill.good { color: var(--green); border-color: rgba(103, 215, 167, 0.28); }
+    .pill.good::before { background: var(--green); box-shadow: 0 0 12px var(--green); }
+    .pill.warn { color: var(--amber); border-color: rgba(255, 182, 72, 0.29); }
+    .pill.warn::before { background: var(--amber); }
+    .pill.info { color: var(--cyan); border-color: rgba(120, 220, 232, 0.28); }
+    .pill.info::before { background: var(--cyan); }
+    .orbit-stage { position: relative; display: grid; place-items: center; min-height: 430px; isolation: isolate; }
+    .orbit-stage::before { content: ""; position: absolute; width: 92%; aspect-ratio: 1; border-radius: 50%; background: radial-gradient(circle, rgba(255, 182, 72, 0.08), transparent 63%); filter: blur(8px); }
+    .black-hole { --mass-scale: 1; position: relative; width: min(290px, 68vw); aspect-ratio: 1; display: grid; place-items: center; transform: scale(calc(0.84 + var(--mass-scale) * 0.16)); transition: transform 500ms cubic-bezier(.2,.8,.2,1); }
+    .black-hole .halo { position: absolute; inset: 7%; border-radius: 50%; background: conic-gradient(from 30deg, transparent 0 16%, rgba(255, 182, 72, .95) 29%, #fff2c4 35%, rgba(120, 220, 232, .82) 46%, transparent 62% 100%); filter: blur(12px); transform: rotate(-18deg) scaleY(.34); animation: rotateHalo 10s linear infinite; }
+    .black-hole .disc { position: absolute; inset: 11%; border: 2px solid rgba(255, 215, 151, 0.75); border-left-color: transparent; border-right-color: rgba(120, 220, 232, 0.68); border-radius: 50%; transform: rotate(-18deg) scaleY(.32); box-shadow: 0 0 28px rgba(255, 182, 72, 0.44), inset 0 0 20px rgba(120, 220, 232, 0.25); }
+    .black-hole .core { position: relative; width: 47%; aspect-ratio: 1; border-radius: 50%; background: radial-gradient(circle at 38% 34%, #111 0, #020202 42%, #000 70%); box-shadow: 0 0 0 1px rgba(255,255,255,.05), 0 0 48px rgba(0,0,0,.95); z-index: 3; }
+    .orbit-label { position: absolute; right: 0; bottom: 8%; width: 170px; padding-left: 15px; border-left: 1px solid var(--amber); color: var(--muted); font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 0.75rem; }
+    .orbit-label strong { display: block; margin-bottom: 4px; color: var(--text); font-size: 0.9rem; }
+    @keyframes rotateHalo { to { rotate: 360deg; } }
+    .tabs { position: sticky; top: 0; z-index: 20; display: flex; gap: 5px; padding: 10px; margin: 4px 0 18px; overflow-x: auto; border: 1px solid var(--line); border-radius: 16px; background: rgba(5, 7, 11, 0.88); box-shadow: 0 14px 35px rgba(0,0,0,.23); backdrop-filter: blur(18px); }
+    .tab-btn { flex: 1 0 auto; min-width: 120px; padding: 10px 15px; border: 0; border-radius: 10px; color: var(--muted); background: transparent; font-weight: 780; cursor: pointer; }
+    .tab-btn.active { color: #101216; background: var(--text); }
+    .tab-panel { display: none; animation: appear 280ms ease; }
+    .tab-panel.active { display: block; }
+    @keyframes appear { from { opacity: 0; transform: translateY(5px); } }
+    .grid { display: grid; gap: 14px; }
+    .metrics { grid-template-columns: repeat(5, minmax(0, 1fr)); margin-bottom: 14px; }
+    .two-col { grid-template-columns: minmax(0, 1.25fr) minmax(320px, 0.75fr); }
+    .two-even { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .three-col { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .card { min-width: 0; padding: 20px; border: 1px solid var(--line); border-radius: var(--radius); background: linear-gradient(150deg, var(--panel), var(--panel-2)); box-shadow: var(--shadow); }
+    .card.accent-a { border-top: 2px solid var(--amber); }
+    .card.accent-b { border-top: 2px solid var(--cyan); }
+    .card.accent-i { border-top: 2px solid var(--violet); }
+    .section-head { display: flex; justify-content: space-between; gap: 14px; align-items: flex-start; margin-bottom: 16px; }
+    .section-kicker { margin: 0 0 5px; color: var(--muted-2); font-size: .72rem; font-weight: 830; letter-spacing: .14em; text-transform: uppercase; }
+    h2, h3 { margin: 0; letter-spacing: -0.025em; }
+    h2 { font-family: Georgia, "Times New Roman", serif; font-size: clamp(1.8rem, 4vw, 3.2rem); font-weight: 500; }
+    h3 { font-size: 1.05rem; }
+    .metric-label { color: var(--muted-2); font-size: .69rem; font-weight: 840; letter-spacing: .11em; text-transform: uppercase; }
+    .metric-value { margin: 7px 0 4px; font-size: clamp(1.35rem, 2.2vw, 2.2rem); font-weight: 760; letter-spacing: -.035em; }
+    .metric-note { color: var(--muted); font-size: .78rem; }
+    .status-strip { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 13px 16px; margin-bottom: 14px; border: 1px solid var(--line); border-radius: 13px; color: var(--muted); background: rgba(12, 16, 24, .76); font-size: .86rem; }
+    .status-strip strong { color: var(--text); }
+    .controls-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px 16px; }
+    .control label { display: flex; justify-content: space-between; gap: 10px; margin-bottom: 7px; color: var(--muted); font-size: .79rem; font-weight: 720; }
+    .control output { color: var(--text); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+    input[type="range"] { width: 100%; accent-color: var(--amber); cursor: pointer; }
+    input[type="number"] { width: 100%; padding: 10px 11px; border: 1px solid var(--line-strong); border-radius: 10px; color: var(--text); background: #0b0e15; }
+    .control-actions { display: flex; gap: 8px; margin-top: 20px; flex-wrap: wrap; }
+    .microcopy { margin: 15px 0 0; color: var(--muted-2); font-size: .76rem; }
+    .chart { width: 100%; min-height: 410px; }
+    .chart.small { min-height: 330px; }
+    .matrix { min-height: 360px; }
+    .spacer { height: 14px; }
+    .top-gap { margin-top: 20px; }
+    .event-list { max-height: 284px; overflow: auto; border: 1px solid var(--line); border-radius: 12px; }
+    table { width: 100%; border-collapse: collapse; font-size: .78rem; }
+    th, td { padding: 9px 11px; text-align: right; border-bottom: 1px solid var(--line); font-variant-numeric: tabular-nums; }
+    th:first-child, td:first-child { text-align: left; }
+    th { position: sticky; top: 0; color: var(--muted); background: #151a26; }
+    tr:last-child td { border-bottom: 0; }
+    .equation { padding: 15px 16px; margin: 15px 0; overflow-x: auto; border: 1px solid var(--line); border-radius: 12px; color: #fff4dc; background: rgba(4, 6, 10, .62); font-family: Georgia, "Times New Roman", serif; font-size: clamp(1rem, 2vw, 1.3rem); white-space: nowrap; }
+    .body-copy { color: var(--muted); font-size: .91rem; }
+    .body-copy strong { color: var(--text); }
+    .callout { padding: 16px 18px; border-left: 3px solid var(--violet); border-radius: 0 12px 12px 0; color: var(--muted); background: rgba(184, 156, 255, 0.13); }
+    .callout strong { color: var(--text); }
+    .residual-card { display: grid; grid-template-columns: auto 1fr; gap: 22px; align-items: center; }
+    .residual-number { min-width: 220px; color: var(--violet); font-family: Georgia, "Times New Roman", serif; font-size: clamp(2.4rem, 5vw, 5.5rem); line-height: .9; letter-spacing: -.05em; }
+    .residual-number small { display: block; margin-top: 12px; color: var(--muted-2); font-family: inherit; font-size: .72rem; letter-spacing: .04em; }
+    .compare-row { display: grid; grid-template-columns: 52px 1fr; gap: 14px; align-items: start; }
+    .compare-code { display: grid; place-items: center; width: 52px; aspect-ratio: 1; border-radius: 50%; font-family: Georgia, serif; font-size: 1.35rem; }
+    .compare-code.a { color: #17120a; background: var(--amber); }
+    .compare-code.b { color: #081315; background: var(--cyan); }
+    .spec-list { display: grid; gap: 8px; margin-top: 16px; }
+    .spec { display: flex; justify-content: space-between; gap: 16px; padding: 9px 0; border-bottom: 1px solid var(--line); color: var(--muted); font-size: .83rem; }
+    .spec span:last-child { color: var(--text); text-align: right; }
+    .pipeline { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px; }
+    .stage { position: relative; padding: 18px; min-height: 165px; border: 1px solid var(--line); border-radius: 15px; background: rgba(13, 17, 26, .78); }
+    .stage:not(:last-child)::after { content: "→"; position: absolute; right: -13px; top: 43%; z-index: 2; color: var(--muted-2); }
+    .stage-number { color: var(--violet); font-family: ui-monospace, monospace; font-size: .75rem; font-weight: 800; }
+    .stage h3 { margin: 18px 0 7px; }
+    .stage p { margin: 0; color: var(--muted); font-size: .79rem; }
+    .code-block { position: relative; padding: 18px; overflow-x: auto; border: 1px solid var(--line); border-radius: 14px; color: #dfe7f5; background: #07090e; font: .82rem/1.7 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; white-space: pre; }
+    .copy-button { position: absolute; top: 10px; right: 10px; }
+    .file-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+    .file-link { padding: 14px; border: 1px solid var(--line); border-radius: 12px; background: rgba(8, 11, 17, .6); transition: border-color 150ms ease; }
+    .file-link:hover { border-color: rgba(120, 220, 232, .5); }
+    .file-link strong { display: block; margin-bottom: 4px; font-size: .87rem; }
+    .file-link span { color: var(--muted-2); font-size: .73rem; }
+    footer { display: flex; justify-content: space-between; gap: 20px; margin-top: 30px; padding: 22px 0; border-top: 1px solid var(--line); color: var(--muted-2); font-size: .76rem; }
+    @media (max-width: 1180px) { .hero { grid-template-columns: 1fr .58fr; } .metrics { grid-template-columns: repeat(3, 1fr); } .pipeline { grid-template-columns: repeat(3, 1fr); } .stage:nth-child(3)::after { display: none; } }
+    @media (max-width: 850px) { .hero { grid-template-columns: 1fr; padding-top: 55px; } .orbit-stage { min-height: 320px; } .two-col, .two-even, .three-col { grid-template-columns: 1fr; } .metrics { grid-template-columns: repeat(2, 1fr); } .pipeline { grid-template-columns: 1fr; } .stage::after { display: none; } .file-grid { grid-template-columns: 1fr; } .residual-card { grid-template-columns: 1fr; } .residual-number { min-width: 0; } }
+    @media (max-width: 560px) { .shell { width: min(100% - 20px, 1540px); } .topbar { align-items: flex-start; } .brand span:last-child { display: none; } h1 { font-size: clamp(3.2rem, 18vw, 5.4rem); } .hero { padding-top: 42px; } .metrics, .controls-grid { grid-template-columns: 1fr; } .status-strip, footer { align-items: flex-start; flex-direction: column; } .card { padding: 16px; } .chart { min-height: 350px; } }
+    @media (prefers-reduced-motion: reduce) { *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; } }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <header class="topbar">
+      <a class="brand" href="#top" aria-label="Black Hole Information Dynamics home">
+        <span class="brand-mark" aria-hidden="true"></span>
+        <span>Black Hole Information Dynamics</span>
+      </a>
+      <div class="top-actions">
+        <a class="button" href="https://github.com/salemmorelli1/Black-Hole/blob/main/docs/research_blueprint.md" target="_blank" rel="noopener">Research blueprint</a>
+        <a class="button" href="https://github.com/salemmorelli1/Black-Hole" target="_blank" rel="noopener">GitHub ↗</a>
+      </div>
+    </header>
+
+    <main id="top">
+      <section class="hero" aria-labelledby="page-title">
+        <div>
+          <p class="eyebrow">Statistics PhD research laboratory</p>
+          <h1 id="page-title">Information at the <em>horizon.</em></h1>
+          <p class="lead">A differentiable experiment comparing quantum evaporation as discrete stochastic packets and as continuous field flow—then measuring what the continuum representation may erase.</p>
+          <div class="hero-meta">
+            <span class="pill good">PyTorch · float64</span>
+            <span class="pill info">Point process + SDE</span>
+            <span class="pill warn">Stopped at M<sub>floor</sub> &gt; 0</span>
+          </div>
+        </div>
+        <div class="orbit-stage" aria-label="Abstract event-horizon visualization">
+          <div class="black-hole" id="blackHole">
+            <div class="halo"></div>
+            <div class="disc"></div>
+            <div class="core"></div>
+          </div>
+          <div class="orbit-label"><strong id="orbitMass">M = 4.000</strong>Illustrative terminal mass<br>from the browser laboratory</div>
+        </div>
+      </section>
+
+      <nav class="tabs" aria-label="Research dashboard sections" role="tablist">
+        <button class="tab-btn active" role="tab" aria-selected="true" aria-controls="experimentTab" data-tab="experimentTab">Experiment lab</button>
+        <button class="tab-btn" role="tab" aria-selected="false" aria-controls="informationTab" data-tab="informationTab">Information engine</button>
+        <button class="tab-btn" role="tab" aria-selected="false" aria-controls="paradigmsTab" data-tab="paradigmsTab">Paradigms</button>
+        <button class="tab-btn" role="tab" aria-selected="false" aria-controls="pipelineTab" data-tab="pipelineTab">Research pipeline</button>
+        <button class="tab-btn" role="tab" aria-selected="false" aria-controls="notesTab" data-tab="notesTab">Inference notes</button>
+      </nav>
+
+      <section class="tab-panel active" id="experimentTab" role="tabpanel">
+        <div class="status-strip">
+          <span><strong>Browser laboratory:</strong> seeded, dimensionless illustration of the two stopped processes.</span>
+          <span class="pill info" id="demoStatus">Ready</span>
+        </div>
+        <div class="grid metrics">
+          <article class="card"><div class="metric-label">Packet events</div><div class="metric-value" id="eventCount">—</div><div class="metric-note">Paradigm A · accepted emissions</div></article>
+          <article class="card"><div class="metric-label">Final mass A</div><div class="metric-value" id="finalMassA">—</div><div class="metric-note">Stopped marked point path</div></article>
+          <article class="card"><div class="metric-label">Final mass B</div><div class="metric-value" id="finalMassB">—</div><div class="metric-note">Euler–Maruyama path</div></article>
+          <article class="card"><div class="metric-label">Terminal gap</div><div class="metric-value" id="massGap">—</div><div class="metric-note">M<sub>B</sub>(T) − M<sub>A</sub>(T)</div></article>
+          <article class="card"><div class="metric-label">Hawking temperature</div><div class="metric-value" id="finalTemp">—</div><div class="metric-note">κ / mean terminal mass</div></article>
+        </div>
+        <div class="grid two-col">
+          <article class="card">
+            <div class="section-head"><div><p class="section-kicker">Parallel forward run</p><h3>Mass trajectories</h3></div><span class="pill info">Interactive Plotly</span></div>
+            <div id="massChart" class="chart"></div>
+          </article>
+          <aside class="card">
+            <div class="section-head"><div><p class="section-kicker">Parameter control</p><h3>Dimensionless experiment</h3></div></div>
+            <div class="controls-grid">
+              <div class="control"><label for="m0">Initial mass M₀ <output id="m0Out">4.00</output></label><input id="m0" type="range" min="1" max="10" step="0.1" value="4"></div>
+              <div class="control"><label for="gamma">Packet rate γ <output id="gammaOut">2.00</output></label><input id="gamma" type="range" min="0.2" max="6" step="0.1" value="2"></div>
+              <div class="control"><label for="alpha">Flow drift α <output id="alphaOut">0.200</output></label><input id="alpha" type="range" min="0.01" max="1" step="0.01" value="0.2"></div>
+              <div class="control"><label for="sigma">Noise σ₀ <output id="sigmaOut">0.020</output></label><input id="sigma" type="range" min="0.005" max="0.2" step="0.005" value="0.02"></div>
+              <div class="control"><label for="horizon">Horizon T <output id="horizonOut">10.0</output></label><input id="horizon" type="range" min="1" max="40" step="0.5" value="10"></div>
+              <div class="control"><label for="seed">Random seed</label><input id="seed" type="number" min="1" step="1" value="20260820"></div>
+            </div>
+            <div class="control-actions">
+              <button class="button primary" id="runBtn" type="button">Run experiment</button>
+              <button class="button" id="newSeedBtn" type="button">New seed</button>
+              <button class="button" id="resetBtn" type="button">Reset</button>
+            </div>
+            <p class="microcopy">The in-browser simulation is an explanatory instrument. Publication estimates must come from the repository’s float64 PyTorch likelihood engine.</p>
+          </aside>
+        </div>
+        <div class="spacer"></div>
+        <div class="grid two-even">
+          <article class="card"><div class="section-head"><div><p class="section-kicker">Energy accounting</p><h3>Cumulative mass emitted</h3></div></div><div id="energyChart" class="chart small"></div></article>
+          <article class="card">
+            <div class="section-head"><div><p class="section-kicker">Marked events</p><h3>Packet ledger</h3></div><span class="pill warn" id="ledgerCount">0 rows</span></div>
+            <div class="event-list"><table><thead><tr><th>Event</th><th>Time</th><th>Energy</th><th>Mass after</th></tr></thead><tbody id="eventRows"></tbody></table></div>
+          </article>
+        </div>
+      </section>
+
+      <section class="tab-panel" id="informationTab" role="tabpanel">
+        <div class="status-strip">
+          <span><strong id="artifactMode">Embedded validated baseline:</strong> PyTorch output is shown unless a committed Part 3 artifact is available.</span>
+          <span class="pill good" id="artifactStatus">PASS</span>
+        </div>
+        <article class="card accent-i residual-card">
+          <div class="residual-number"><span id="deltaInformation">—</span><small>ΔI = I<sub>B</sub> − I<sub>A</sub> · nats</small></div>
+          <div>
+            <p class="section-kicker">Primary information contrast</p>
+            <h2 id="residualFinding">Evaluating the information gap</h2>
+            <p class="body-copy" id="residualNarrative">Loading the validated baseline snapshot…</p>
+            <div class="hero-meta"><span class="pill" id="replicatePill">Replicates —</span><span class="pill" id="seedPill">Seed —</span><span class="pill warn">Open-loop diagnostic</span></div>
+          </div>
+        </article>
+        <div class="spacer"></div>
+        <div class="grid two-even">
+          <article class="card accent-a"><div class="section-head"><div><p class="section-kicker">Common coordinates (M₀, α<sub>eff</sub>)</p><h3>Fisher matrix · Paradigm A</h3></div></div><div id="fimAChart" class="matrix"></div></article>
+          <article class="card accent-b"><div class="section-head"><div><p class="section-kicker">Common coordinates (M₀, α<sub>eff</sub>)</p><h3>Fisher matrix · Paradigm B</h3></div></div><div id="fimBChart" class="matrix"></div></article>
+        </div>
+        <div class="spacer"></div>
+        <div class="grid two-col">
+          <article class="card"><div class="section-head"><div><p class="section-kicker">Detector information</p><h3>Baseline comparison</h3></div></div><div id="informationChart" class="chart small"></div></article>
+          <aside class="card">
+            <p class="section-kicker">Interpretation boundary</p>
+            <h3>Directed information requires filtration-aware predictors</h3>
+            <div class="equation">Ṡ = 𝔼[ℓ<sub>full</sub>(dY<sub>t</sub>) − ℓ<sub>reduced</sub>(dY<sub>t</sub>)] / dt</div>
+            <p class="body-copy">The current ensemble uses leave-one-out, open-loop predictors. It is therefore an <strong>information diagnostic</strong>, not yet a continuous-time transfer-entropy estimator.</p>
+            <div class="callout"><strong>Required next layer:</strong> causal marked-point filtering for A and nonlinear continuous-time filtering for B, both conditioned on the same detector history.</div>
+          </aside>
+        </div>
+      </section>
+
+      <section class="tab-panel" id="paradigmsTab" role="tabpanel">
+        <div class="grid two-even">
+          <article class="card accent-a">
+            <div class="compare-row"><div class="compare-code a">A</div><div><p class="section-kicker">Discrete packet jump-diffusion</p><h2>Events remain visible.</h2></div></div>
+            <div class="equation">M<sub>tᵢ</sub> = M<sub>tᵢ₋₁</sub> − Eᵢ, &nbsp; λ(M<sub>t</sub>) = γ / M<sub>t</sub></div>
+            <p class="body-copy">A stopped, non-homogeneous marked point process. Inverse-transform waiting times retain almost-everywhere pathwise gradients conditional on event topology.</p>
+            <div class="spec-list"><div class="spec"><span>State update</span><span>Discontinuous jump</span></div><div class="spec"><span>Energy marks</span><span>Modified thermal Planck law</span></div><div class="spec"><span>Likelihood</span><span>Compensator + mark density</span></div><div class="spec"><span>Primary risk</span><span>Topology-changing gradients</span></div></div>
+          </article>
+          <article class="card accent-b">
+            <div class="compare-row"><div class="compare-code b">B</div><div><p class="section-kicker">Continuous quantum-field flow</p><h2>Events become flux.</h2></div></div>
+            <div class="equation">dM<sub>t</sub> = −αM<sub>t</sub><sup>−2</sup>dt + σ₀M<sub>t</sub><sup>−1</sup>dW<sub>t</sub></div>
+            <p class="body-copy">A stopped Itô diffusion integrated by Euler–Maruyama. Its path likelihood follows the Gaussian transition law and Girsanov score structure.</p>
+            <div class="spec-list"><div class="spec"><span>State update</span><span>Continuous increment</span></div><div class="spec"><span>Stochastic driver</span><span>Brownian motion</span></div><div class="spec"><span>Likelihood</span><span>Transition density / Girsanov</span></div><div class="spec"><span>Primary risk</span><span>Singular drift and stiffness</span></div></div>
+          </article>
+        </div>
+        <div class="spacer"></div>
+        <article class="card">
+          <p class="section-kicker">Moment-matching control</p>
+          <h3>The requested B model is not the diffusion limit of A</h3>
+          <div class="grid three-col top-gap">
+            <div><div class="metric-label">Planck mean</div><div class="metric-value">2.701195</div><div class="metric-note">E[X] under the finite thermal mixture</div></div>
+            <div><div class="metric-label">α per γ</div><div class="metric-value">0.107477</div><div class="metric-note">Mean-drift matching constant</div></div>
+            <div><div class="metric-label">Matched noise</div><div class="metric-value">M<sup>−3/2</sup></div><div class="metric-note">Contrasts with requested M<sup>−1</sup></div></div>
+          </div>
+          <div class="callout top-gap"><strong>Control B★:</strong> include the M<sup>−3/2</sup> diffusion scaling as a separate moment-matched continuum control. This isolates observation granularity from mismatched local variance.</div>
+        </article>
+      </section>
+
+      <section class="tab-panel" id="pipelineTab" role="tabpanel">
+        <article class="card">
+          <p class="section-kicker">Auditable canonical stack</p>
+          <h2>One question, five controlled stages.</h2>
+          <div class="pipeline top-gap">
+            <div class="stage"><span class="stage-number">PART 00</span><h3>Validate</h3><p>Check positivity, cutoffs, Planck moments, and drift matching.</p></div>
+            <div class="stage"><span class="stage-number">PART 01</span><h3>Packets</h3><p>Simulate event times, thermal marks, and stopped mass paths.</p></div>
+            <div class="stage"><span class="stage-number">PART 02</span><h3>Flows</h3><p>Integrate SDE paths and record transition likelihood terms.</p></div>
+            <div class="stage"><span class="stage-number">PART 03</span><h3>Information</h3><p>Estimate fixed-data scores, Fisher matrices, and ΔI.</p></div>
+            <div class="stage"><span class="stage-number">PART 04</span><h3>Verify</h3><p>Run numerical invariants, unit tests, and repository checks.</p></div>
+          </div>
+        </article>
+        <div class="spacer"></div>
+        <div class="grid two-col">
+          <article class="card">
+            <div class="section-head"><div><p class="section-kicker">Reproducible run</p><h3>Launch the research pipeline</h3></div></div>
+            <div class="code-block" id="pipelineCommand">python run_research_pipeline.py --replicates 64 --seed 20260820<button class="button copy-button" id="copyBtn" type="button">Copy</button></div>
+            <p class="microcopy">The command writes versioned JSON summaries beneath <code>artifacts/</code>. Generated research artifacts are excluded from source control by default.</p>
+          </article>
+          <article class="card">
+            <p class="section-kicker">Repository map</p><h3>Read the implementation</h3>
+            <div class="file-grid top-gap">
+              <a class="file-link" href="https://github.com/salemmorelli1/Black-Hole/blob/main/src/black_hole_information/engine.py" target="_blank" rel="noopener"><strong>engine.py</strong><span>Models + information engine</span></a>
+              <a class="file-link" href="https://github.com/salemmorelli1/Black-Hole/blob/main/tests/test_engine.py" target="_blank" rel="noopener"><strong>test_engine.py</strong><span>Numerical invariants</span></a>
+              <a class="file-link" href="https://github.com/salemmorelli1/Black-Hole/blob/main/configs/baseline.json" target="_blank" rel="noopener"><strong>baseline.json</strong><span>Experiment configuration</span></a>
+            </div>
+          </article>
+        </div>
+      </section>
+
+      <section class="tab-panel" id="notesTab" role="tabpanel">
+        <div class="grid three-col">
+          <article class="card"><p class="section-kicker">Core hypothesis</p><h3>Does smoothing conceal information?</h3><p class="body-copy">The directional claim is E[ΔI(T)] &lt; 0: the continuum observation paradigm transmits less detector information than discrete emissions.</p></article>
+          <article class="card"><p class="section-kicker">Fisher geometry</p><h3>Compare common coordinates.</h3><p class="body-copy">Native three-parameter Fisher matrices are structurally singular because γ is absent from B and α is absent from A. Pull both models back to (M₀, α<sub>eff</sub>).</p></article>
+          <article class="card"><p class="section-kicker">HMC / NUTS</p><h3>Regularize before the cutoff.</h3><p class="body-copy">As M approaches zero, λ, drift, and diffusion explode. Positive transforms, stopped paths, non-centered constructions, and metric regularization are computational necessities.</p></article>
+        </div>
+        <div class="spacer"></div>
+        <article class="card">
+          <p class="section-kicker">Scientific safeguards</p><h2>What this interface does—and does not—claim.</h2>
+          <div class="grid two-even top-gap">
+            <div class="callout"><strong>It does:</strong> expose model equations, reproduce the validated baseline information snapshot, animate seeded sample paths, and document the exact inferential boundary.</div>
+            <div class="callout"><strong>It does not:</strong> treat M = 0 as semiclassically valid, call an open-loop contrast transfer entropy, or substitute browser arithmetic for the PyTorch likelihood engine.</div>
+          </div>
+        </article>
+      </section>
+    </main>
+    <footer><span>Black Hole Information Dynamics · Salem Morelli</span><span>PyTorch · marked point processes · Itô diffusions · Fisher information</span></footer>
+  </div>
+  <script>
+    const KAPPA = 1 / (8 * Math.PI);
+    const M_FLOOR = 0.25;
+    const PLOT_CONFIG = { responsive: true, displaylogo: false, modeBarButtonsToRemove: ["lasso2d", "select2d"] };
+    const COLORS = { a: "#ffb648", b: "#78dce8", violet: "#b89cff", text: "#f6f8fb", muted: "#aab3c2", grid: "rgba(219,229,242,.09)", panel: "rgba(0,0,0,0)" };
+    const EMBEDDED_RESULT = {
+      status: "PASS",
+      provenance: { replicates: 16, seed: 20260820, torch_version: "2.13.0+cu130" },
+      result: {
+        information_a_nats: 9.604098131305028e-8,
+        information_b_nats: 1.9773576679624442e-8,
+        delta_information_B_minus_A_nats: -7.626740463342584e-8,
+        fisher_a_common_M0_alpha_eff: [[336.93412721357566, -7.394557693437623], [-7.39455769343762, 1.2978404549970846]],
+        fisher_b_common_M0_alpha_eff: [[335.66979804725787, -8.513526223056106], [-8.513526223056106, 19.057941406949585]]
+      }
+    };
+
+    function plotLayout(title, xTitle, yTitle, extra = {}) {
+      return {
+        title: { text: title, x: 0.02, xanchor: "left", font: { color: COLORS.text, size: 15 } },
+        margin: { l: 60, r: 24, t: 54, b: 54 }, paper_bgcolor: COLORS.panel, plot_bgcolor: COLORS.panel,
+        font: { color: COLORS.muted, family: "Inter, system-ui, sans-serif", size: 12 },
+        xaxis: { title: xTitle, gridcolor: COLORS.grid, zerolinecolor: COLORS.grid, color: COLORS.muted },
+        yaxis: { title: yTitle, gridcolor: COLORS.grid, zerolinecolor: COLORS.grid, color: COLORS.muted },
+        legend: { orientation: "h", x: 0, y: 1.14 },
+        hoverlabel: { bgcolor: "#171d2a", bordercolor: "rgba(255,255,255,.16)", font: { color: COLORS.text } },
+        ...extra
+      };
+    }
+    function mulberry32(seed) {
+      let a = seed >>> 0;
+      return function () {
+        a |= 0; a = (a + 0x6D2B79F5) | 0;
+        let t = Math.imul(a ^ (a >>> 15), 1 | a);
+        t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+        return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+      };
+    }
+    function normal(rng) {
+      const u1 = Math.max(rng(), 1e-12);
+      return Math.sqrt(-2 * Math.log(u1)) * Math.cos(2 * Math.PI * rng());
+    }
+    const markWeights = (() => {
+      const values = Array.from({ length: 96 }, (_, i) => 1 / Math.pow(i + 1, 3));
+      const total = values.reduce((a, b) => a + b, 0);
+      let running = 0;
+      return values.map(value => (running += value / total));
+    })();
+    function planckMark(rng) {
+      const u = rng();
+      let k = markWeights.findIndex(c => u <= c) + 1;
+      if (k < 1) k = markWeights.length;
+      return -Math.log(Math.max(rng() * rng() * rng(), 1e-15)) / k;
+    }
+    function simulateA(params) {
+      const rng = mulberry32(params.seed);
+      const times = [0], masses = [params.m0], events = [];
+      let t = 0, mass = params.m0, emitted = 0;
+      while (t < params.horizon && mass > M_FLOOR && events.length < 5000) {
+        const rate = params.gamma / Math.max(mass, M_FLOOR);
+        const nextTime = t - Math.log(Math.max(rng(), 1e-12)) / rate;
+        if (nextTime >= params.horizon) break;
+        const proposed = (KAPPA / mass) * planckMark(rng);
+        const energy = Math.min(proposed, mass - M_FLOOR);
+        times.push(nextTime, nextTime); masses.push(mass, mass - energy);
+        mass -= energy; emitted += energy;
+        events.push({ index: events.length + 1, time: nextTime, energy, mass, emitted });
+        t = nextTime;
+        if (mass <= M_FLOOR + 1e-10) break;
+      }
+      times.push(params.horizon); masses.push(mass);
+      return { times, masses, events, finalMass: mass };
+    }
+    function simulateB(params) {
+      const rng = mulberry32((params.seed ^ 0x9E3779B9) >>> 0);
+      const dt = Math.min(0.02, params.horizon / 700);
+      const steps = Math.max(1, Math.ceil(params.horizon / dt));
+      const actualDt = params.horizon / steps;
+      const times = [0], masses = [params.m0];
+      let mass = params.m0;
+      for (let i = 1; i <= steps; i += 1) {
+        if (mass <= M_FLOOR) { times.push(i * actualDt); masses.push(M_FLOOR); continue; }
+        const drift = -params.alpha / (mass * mass);
+        const diffusion = params.sigma / mass;
+        mass = Math.max(M_FLOOR, mass + drift * actualDt + diffusion * Math.sqrt(actualDt) * normal(rng));
+        times.push(i * actualDt); masses.push(mass);
+      }
+      return { times, masses, finalMass: mass };
+    }
+    function values() {
+      return {
+        m0: Number(document.getElementById("m0").value), gamma: Number(document.getElementById("gamma").value),
+        alpha: Number(document.getElementById("alpha").value), sigma: Number(document.getElementById("sigma").value),
+        horizon: Number(document.getElementById("horizon").value),
+        seed: Math.max(1, Math.floor(Number(document.getElementById("seed").value) || 1))
+      };
+    }
+    function renderLedger(events) {
+      const body = document.getElementById("eventRows"); body.replaceChildren();
+      if (!events.length) {
+        const row = body.insertRow(), cell = row.insertCell();
+        cell.colSpan = 4; cell.textContent = "No events occurred before T for this seed."; cell.style.textAlign = "center"; cell.style.color = COLORS.muted;
+      } else {
+        events.slice(0, 80).forEach(event => {
+          const row = body.insertRow();
+          [event.index, event.time.toFixed(4), event.energy.toExponential(3), event.mass.toFixed(5)].forEach((value, index) => {
+            const cell = row.insertCell(); cell.textContent = value; if (index === 0) cell.style.textAlign = "left";
+          });
+        });
+      }
+      document.getElementById("ledgerCount").textContent = `${events.length} event${events.length === 1 ? "" : "s"}`;
+    }
+    function runDemo() {
+      const params = values();
+      document.getElementById("demoStatus").textContent = "Running";
+      const a = simulateA(params), b = simulateB(params);
+      const gap = b.finalMass - a.finalMass;
+      const terminalMean = Math.max(M_FLOOR, 0.5 * (a.finalMass + b.finalMass));
+      document.getElementById("eventCount").textContent = String(a.events.length);
+      document.getElementById("finalMassA").textContent = a.finalMass.toFixed(5);
+      document.getElementById("finalMassB").textContent = b.finalMass.toFixed(5);
+      document.getElementById("massGap").textContent = `${gap >= 0 ? "+" : ""}${gap.toFixed(5)}`;
+      document.getElementById("finalTemp").textContent = (KAPPA / terminalMean).toExponential(3);
+      document.getElementById("orbitMass").textContent = `M = ${terminalMean.toFixed(3)}`;
+      document.getElementById("blackHole").style.setProperty("--mass-scale", Math.max(0.05, Math.min(1, terminalMean / params.m0)).toFixed(3));
+      Plotly.react("massChart", [
+        { x: a.times, y: a.masses, name: "A · packet path", mode: "lines", line: { color: COLORS.a, width: 2.6, shape: "hv" }, hovertemplate: "t=%{x:.4f}<br>M=%{y:.6f}<extra>Paradigm A</extra>" },
+        { x: b.times, y: b.masses, name: "B · field flow", mode: "lines", line: { color: COLORS.b, width: 2.3 }, hovertemplate: "t=%{x:.4f}<br>M=%{y:.6f}<extra>Paradigm B</extra>" },
+        { x: a.events.map(e => e.time), y: a.events.map(e => e.mass), name: "emission event", mode: "markers", marker: { color: COLORS.a, size: 7, symbol: "diamond", line: { color: "#fff1d4", width: 1 } }, hovertemplate: "event t=%{x:.4f}<br>M after=%{y:.6f}<extra></extra>" }
+      ], plotLayout("Stopped mass evolution", "time t", "mass M(t)", { yaxis: { title: "mass M(t)", gridcolor: COLORS.grid, range: [Math.max(0, Math.min(a.finalMass, b.finalMass) - .08), params.m0 + .08] } }), PLOT_CONFIG);
+      const aEnergyT = [0, ...a.events.map(e => e.time), params.horizon];
+      const aEnergy = [0, ...a.events.map(e => e.emitted), params.m0 - a.finalMass];
+      Plotly.react("energyChart", [
+        { x: aEnergyT, y: aEnergy, name: "A · packet energy", mode: "lines+markers", line: { color: COLORS.a, width: 2.3, shape: "hv" }, marker: { size: 5 } },
+        { x: b.times, y: b.masses.map(m => params.m0 - m), name: "B · continuous flux", mode: "lines", line: { color: COLORS.b, width: 2.3 } }
+      ], plotLayout("Cumulative emitted mass-energy", "time t", "M₀ − M(t)"), PLOT_CONFIG);
+      renderLedger(a.events);
+      document.getElementById("demoStatus").textContent = `Seed ${params.seed}`;
+    }
+    function renderMatrix(id, matrix, accent) {
+      const z = Array.isArray(matrix) ? matrix : [[0,0],[0,0]];
+      Plotly.react(id, [{ z, x: ["M₀", "α_eff"], y: ["M₀", "α_eff"], type: "heatmap", hoverongaps: false,
+        colorscale: [[0, "#151922"], [.45, "#31394a"], [1, accent]], showscale: false,
+        text: z.map(row => row.map(v => Number(v).toFixed(4))), texttemplate: "%{text}", textfont: { color: COLORS.text, size: 14 },
+        hovertemplate: "row %{y}, column %{x}<br>%{z:.6f}<extra></extra>" }],
+      plotLayout("", "", "", { margin: { l: 64, r: 22, t: 16, b: 52 }, xaxis: { side: "bottom", color: COLORS.muted }, yaxis: { autorange: "reversed", color: COLORS.muted } }), PLOT_CONFIG);
+    }
+    function renderInformation(payload, external = false) {
+      const data = payload.result || payload, provenance = payload.provenance || {};
+      const delta = Number(data.delta_information_B_minus_A_nats), ia = Number(data.information_a_nats), ib = Number(data.information_b_nats);
+      document.getElementById("artifactMode").textContent = external ? "Committed Part 3 artifact:" : "Embedded validated baseline:";
+      document.getElementById("artifactStatus").textContent = payload.status || "PASS";
+      document.getElementById("deltaInformation").textContent = delta.toExponential(3);
+      document.getElementById("residualFinding").textContent = delta < 0 ? "The baseline points toward information loss." : delta > 0 ? "The baseline does not support the directional hypothesis." : "The baseline contrast is numerically neutral.";
+      document.getElementById("residualNarrative").textContent = delta < 0
+        ? "For this finite Monte Carlo baseline, Paradigm B carries less detector information than Paradigm A. This is evidence in the hypothesized direction, not yet a theorem or a transfer-entropy conclusion."
+        : "The finite baseline does not produce a negative information residual. Replication, uncertainty quantification, and causal filtering remain necessary.";
+      document.getElementById("replicatePill").textContent = `Replicates ${provenance.replicates ?? "—"}`;
+      document.getElementById("seedPill").textContent = `Seed ${provenance.seed ?? "—"}`;
+      renderMatrix("fimAChart", data.fisher_a_common_M0_alpha_eff, COLORS.a);
+      renderMatrix("fimBChart", data.fisher_b_common_M0_alpha_eff, COLORS.b);
+      Plotly.react("informationChart", [{ x: ["Paradigm A", "Paradigm B"], y: [ia, ib], type: "bar",
+        marker: { color: [COLORS.a, COLORS.b], line: { color: ["#ffe4b5", "#c4f7fb"], width: 1 } },
+        text: [ia.toExponential(3), ib.toExponential(3)], textposition: "outside", hovertemplate: "%{x}<br>%{y:.6e} nats<extra></extra>" }],
+      plotLayout("Integrated information diagnostic", "observation paradigm", "information (nats)", { showlegend: false, yaxis: { title: "information (nats)", gridcolor: COLORS.grid, rangemode: "tozero", exponentformat: "e" } }), PLOT_CONFIG);
+    }
+    async function loadArtifact() {
+      try {
+        const response = await fetch(`artifacts/part3/information_summary.json?t=${Date.now()}`);
+        if (!response.ok) throw new Error("artifact unavailable");
+        renderInformation(await response.json(), true);
+      } catch { renderInformation(EMBEDDED_RESULT, false); }
+    }
+    function setupTabs() {
+      document.querySelectorAll(".tab-btn").forEach(button => {
+        button.addEventListener("click", () => {
+          document.querySelectorAll(".tab-btn").forEach(item => { item.classList.remove("active"); item.setAttribute("aria-selected", "false"); });
+          document.querySelectorAll(".tab-panel").forEach(panel => panel.classList.remove("active"));
+          button.classList.add("active"); button.setAttribute("aria-selected", "true");
+          document.getElementById(button.dataset.tab).classList.add("active");
+          setTimeout(() => document.querySelectorAll(".chart, .matrix").forEach(plot => { if (plot.data) Plotly.Plots.resize(plot); }), 40);
+        });
+      });
+    }
+    const rangeBindings = [["m0", "m0Out", 2], ["gamma", "gammaOut", 2], ["alpha", "alphaOut", 3], ["sigma", "sigmaOut", 3], ["horizon", "horizonOut", 1]];
+    rangeBindings.forEach(([inputId, outputId, digits]) => {
+      document.getElementById(inputId).addEventListener("input", event => { document.getElementById(outputId).textContent = Number(event.target.value).toFixed(digits); });
+    });
+    document.getElementById("runBtn").addEventListener("click", runDemo);
+    document.getElementById("newSeedBtn").addEventListener("click", () => { document.getElementById("seed").value = String(Math.floor(Math.random() * 2_000_000_000) + 1); runDemo(); });
+    document.getElementById("resetBtn").addEventListener("click", () => {
+      const defaults = { m0: 4, gamma: 2, alpha: .2, sigma: .02, horizon: 10, seed: 20260820 };
+      Object.entries(defaults).forEach(([id, value]) => { document.getElementById(id).value = String(value); });
+      rangeBindings.forEach(([inputId, outputId, digits]) => { document.getElementById(outputId).textContent = Number(document.getElementById(inputId).value).toFixed(digits); });
+      runDemo();
+    });
+    document.getElementById("copyBtn").addEventListener("click", async () => {
+      const command = "python run_research_pipeline.py --replicates 64 --seed 20260820";
+      try { await navigator.clipboard.writeText(command); document.getElementById("copyBtn").textContent = "Copied"; }
+      catch { document.getElementById("copyBtn").textContent = "Select command"; }
+      setTimeout(() => { document.getElementById("copyBtn").textContent = "Copy"; }, 1400);
+    });
+    window.addEventListener("resize", () => document.querySelectorAll(".chart, .matrix").forEach(plot => { if (plot.data) Plotly.Plots.resize(plot); }));
+    window.addEventListener("error", () => { document.getElementById("demoStatus").textContent = "Check console"; });
+    setupTabs(); runDemo(); loadArtifact();
+  </script>
+</body>
+</html>
