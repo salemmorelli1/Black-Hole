@@ -1,1033 +1,185 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>GasPriceForecast — Production Dashboard</title>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#05080d">
+  <meta name="description" content="Interactive research laboratory comparing discrete Hawking packet emissions with a continuous stochastic black-hole evaporation flow.">
+  <title>Black Hole Information Dynamics — Interactive Laboratory</title>
   <style>
     :root {
-      --bg: #020c1a;
-      --panel: #071526;
-      --panel-2: #0b1c30;
-      --panel-3: #0f2240;
-      --border: #1e3a5f;
-      --text: #e8f4fd;
-      --text-strong: #ffffff;
-      --muted: #94b8d4;
-      --muted-2: #6a8fa8;
-      --accent: #38bdf8;
-      --accent-2: #f59e0b;
-      --good: #22c55e;
-      --good-bg: rgba(34,197,94,0.13);
-      --warn: #f59e0b;
-      --warn-bg: rgba(245,158,11,0.13);
-      --bad: #ef4444;
-      --bad-bg: rgba(239,68,68,0.13);
-      --info: #38bdf8;
-      --info-bg: rgba(56,189,248,0.13);
-      --shadow: 0 8px 32px rgba(0,0,0,0.35);
-      --radius: 16px;
+      --bg:#05080d; --panel:#0d121c; --panel2:#111824; --line:rgba(184,205,224,.18);
+      --ink:#f5f7fb; --muted:#a9b5c4; --quiet:#748194; --amber:#ffb544; --cyan:#70dbe8;
+      --mint:#6ee7bd; --violet:#b28cff; --red:#ff738a; --radius:20px; --shadow:0 24px 70px rgba(0,0,0,.3);
     }
-    * { box-sizing: border-box; }
-    html, body { margin:0; padding:0; background:var(--bg); color:var(--text);
-      font-family: Inter, ui-sans-serif, system-ui, -apple-system, sans-serif; }
-    a { color:var(--accent); text-decoration:none; }
-    a:hover { text-decoration:underline; }
-
-    .wrap { max-width:1800px; margin:0 auto; padding:12px 16px 40px; }
-
-    /* Header */
-    .header { display:flex; justify-content:space-between; align-items:flex-start;
-      gap:16px; margin-bottom:20px; border-bottom:1px solid var(--border);
-      padding-bottom:16px; }
-    .title h1 { margin:0 0 6px; font-size:2rem; color:var(--text-strong);
-      letter-spacing:-0.5px; }
-    .title h1 span { color:var(--accent); }
-    .title p { margin:0; color:var(--muted); font-size:0.93rem; max-width:900px;
-      line-height:1.5; }
-    .controls { display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
-    button { background:var(--panel-2); border:1px solid var(--border);
-      color:var(--text); padding:8px 16px; border-radius:8px; cursor:pointer;
-      font-size:0.87rem; transition:all .15s; }
-    button:hover { background:var(--panel-3); border-color:var(--accent);
-      color:var(--text-strong); }
-    button.primary { background:var(--accent); border-color:var(--accent);
-      color:#000; font-weight:600; }
-    button.primary:hover { opacity:0.88; }
-
-    /* Cards */
-    .card { background:var(--panel); border:1px solid var(--border);
-      border-radius:var(--radius); padding:18px 20px; box-shadow:var(--shadow); }
-    .label { font-size:0.75rem; font-weight:700; letter-spacing:.08em;
-      text-transform:uppercase; color:var(--muted); margin-bottom:10px; }
-
-    /* Hero row */
-    .hero-row { display:grid; grid-template-columns:repeat(auto-fit, minmax(220px, 1fr));
-      gap:12px; margin-bottom:14px; }
-    .hero-card { display:flex; flex-direction:column; gap:4px; }
-    .hero-big { font-size:2rem; font-weight:800; color:var(--text-strong);
-      line-height:1.1; letter-spacing:-1px; }
-    .hero-big.good { color:var(--good); }
-    .hero-big.warn { color:var(--warn); }
-    .hero-big.bad  { color:var(--bad); }
-    .hero-sub { font-size:0.83rem; color:var(--muted); }
-
-    /* Status pills */
-    .pill { display:inline-block; font-size:0.73rem; font-weight:700;
-      letter-spacing:.04em; padding:3px 10px; border-radius:20px;
-      text-transform:uppercase; }
-    .pill.good { background:var(--good-bg); color:var(--good);
-      border:1px solid var(--good); }
-    .pill.warn { background:var(--warn-bg); color:var(--warn);
-      border:1px solid var(--warn); }
-    .pill.bad  { background:var(--bad-bg);  color:var(--bad);
-      border:1px solid var(--bad); }
-    .pill.info { background:var(--info-bg); color:var(--info);
-      border:1px solid var(--info); }
-    .pill.muted{ background:var(--panel-2); color:var(--muted);
-      border:1px solid var(--border); }
-    .pill-row { display:flex; gap:8px; flex-wrap:wrap; margin:8px 0; }
-
-    /* Tabs */
-    .tabs { display:flex; gap:6px; flex-wrap:wrap; margin:18px 0 12px;
-      border-bottom:1px solid var(--border); padding-bottom:8px; }
-    .tab-btn { border-radius:8px 8px 0 0; border-bottom:2px solid transparent;
-      background:transparent; border-top:1px solid transparent;
-      border-left:1px solid transparent; border-right:1px solid transparent;
-      color:var(--muted); padding:8px 18px; }
-    .tab-btn.active { border-color:var(--border); border-bottom-color:var(--accent);
-      color:var(--text-strong); background:var(--panel); }
-    .tab-panel { display:none; }
-    .tab-panel.active { display:block; }
-
-    /* Grid */
-    .grid { display:grid; gap:14px; margin-bottom:14px; }
-    .two-col { grid-template-columns:1fr 1fr; }
-    .three-col { grid-template-columns:1fr 1fr 1fr; }
-    @media(max-width:900px) { .two-col,.three-col { grid-template-columns:1fr; } }
-
-    /* Charts */
-    .chart { min-height:320px; }
-    .chart.tall { min-height:420px; }
-    .chart.small { min-height:220px; }
-
-    /* Snapshot / KV grid */
-    .kv-grid { display:grid; grid-template-columns:1fr 1fr; gap:8px 16px;
-      margin-top:10px; }
-    .kv-item { display:flex; flex-direction:column; gap:2px; }
-    .kv-key { font-size:0.72rem; color:var(--muted-2); text-transform:uppercase;
-      letter-spacing:.05em; }
-    .kv-val { font-size:0.95rem; font-weight:600; color:var(--text-strong); }
-
-    /* Status bar */
-    .status-bar { background:var(--panel-2); border:1px solid var(--border);
-      border-radius:10px; padding:12px 16px; margin-bottom:14px;
-      font-size:0.85rem; color:var(--muted); }
-    .status-bar b { color:var(--text-strong); }
-
-    /* Run log */
-    .run-log { font-size:0.78rem; font-family:monospace; color:var(--muted);
-      background:var(--panel-2); border:1px solid var(--border);
-      border-radius:8px; padding:12px 14px; max-height:260px;
-      overflow-y:auto; white-space:pre-wrap; }
-
-    /* Price display */
-    .price-display { text-align:center; padding:20px; }
-    .price-big { font-size:4.5rem; font-weight:900; letter-spacing:-3px;
-      color:var(--text-strong); line-height:1; }
-    .price-big .currency { font-size:2.5rem; vertical-align:super;
-      color:var(--accent); }
-    .price-label { font-size:0.85rem; color:var(--muted); margin-top:6px; }
-
-    /* Divider */
-    .divider { height:1px; background:var(--border); margin:16px 0; }
-
-    /* Footer */
-    footer { margin-top:40px; padding-top:16px; border-top:1px solid var(--border);
-      font-size:0.78rem; color:var(--muted-2); text-align:center; }
-
-    /* Loading */
-    .loading { color:var(--muted); font-size:0.9rem; padding:40px;
-      text-align:center; }
-    .error-box { background:var(--bad-bg); border:1px solid var(--bad);
-      border-radius:8px; padding:12px 16px; font-size:0.85rem; color:var(--bad); }
+    *{box-sizing:border-box} html{scroll-behavior:smooth;color-scheme:dark} body{margin:0;min-width:320px;background:
+      radial-gradient(circle at 84% 9%,rgba(101,68,184,.11),transparent 31rem),
+      radial-gradient(circle at 7% 63%,rgba(46,178,197,.08),transparent 28rem),var(--bg);
+      color:var(--ink);font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;line-height:1.55;overflow-x:hidden}
+    body::before{content:"";position:fixed;inset:0;pointer-events:none;z-index:-1;opacity:.32;background-image:
+      radial-gradient(circle,rgba(255,255,255,.72) 0 1px,transparent 1.35px),
+      radial-gradient(circle,rgba(112,219,232,.58) 0 1px,transparent 1.35px);
+      background-size:181px 173px,277px 263px;background-position:17px 29px,89px 61px;mask-image:linear-gradient(#000,transparent 92%)}
+    button,input,select,a{font:inherit}button{color:inherit}a{color:inherit;text-decoration:none}:focus-visible{outline:3px solid rgba(112,219,232,.78);outline-offset:3px}
+    .shell{width:min(1480px,calc(100% - 36px));margin-inline:auto}.topbar{min-height:70px;display:flex;align-items:center;justify-content:space-between;gap:18px;border-bottom:1px solid var(--line)}
+    .brand{display:inline-flex;align-items:center;gap:10px;font-weight:850;letter-spacing:-.025em}.brand-mark{width:28px;height:28px;border:1px solid rgba(112,219,232,.72);border-radius:50%;position:relative}.brand-mark::before{content:"";position:absolute;inset:4px 9px;border:1px solid var(--amber);border-radius:50%;transform:rotate(-25deg)}
+    .top-actions,.hero-actions,.transport-actions,.canvas-actions,.preset-row{display:flex;align-items:center;gap:9px;flex-wrap:wrap}
+    .button{min-height:42px;display:inline-flex;align-items:center;justify-content:center;gap:7px;padding:0 16px;border:1px solid rgba(174,194,218,.28);border-radius:999px;background:rgba(9,13,20,.76);font-size:.82rem;font-weight:850;cursor:pointer;transition:.2s ease}
+    .button:hover{transform:translateY(-2px);border-color:rgba(112,219,232,.58)}.button.primary{color:#11151c;background:var(--amber);border-color:transparent;box-shadow:0 12px 30px rgba(255,181,68,.15)}.button.primary:hover{background:#ffc568}.button.cyan{color:#061216;background:var(--cyan);border-color:transparent}.button.small{min-height:35px;padding-inline:12px;font-size:.72rem}.button.square{width:43px;padding:0;border-radius:12px;font-size:1rem}
+    .hero{display:grid;grid-template-columns:minmax(0,1fr) minmax(420px,.75fr);gap:clamp(35px,6vw,94px);align-items:center;padding:58px 0 42px}.eyebrow,.kicker{color:var(--cyan);font-size:.69rem;font-weight:950;letter-spacing:.16em;text-transform:uppercase}
+    h1,h2,h3,p{margin-top:0}h1{margin:12px 0 18px;font:700 clamp(4rem,7.5vw,7.6rem)/.83 Georgia,"Times New Roman",serif;letter-spacing:-.065em}h1 em{display:block;color:var(--amber);font-weight:500}.hero-copy{max-width:730px;color:#bbc5d2;font-size:clamp(.98rem,1.4vw,1.14rem)}
+    .pills{display:flex;gap:8px;flex-wrap:wrap;margin:22px 0}.pill{display:inline-flex;align-items:center;gap:7px;padding:6px 10px;border:1px solid var(--line);border-radius:999px;background:rgba(7,11,18,.68);color:#c7d0dc;font-size:.67rem;font-weight:850}.pill i{width:6px;height:6px;border-radius:50%;background:var(--cyan);box-shadow:0 0 12px currentColor}.pill.amber i{background:var(--amber)}.pill.mint i{background:var(--mint)}
+    .hero-visual{min-height:390px;position:relative;overflow:hidden;border:1px solid var(--line);border-radius:28px;background:linear-gradient(145deg,rgba(15,20,32,.94),rgba(5,8,14,.98));box-shadow:var(--shadow)}
+    .hero-visual canvas{display:block;width:100%;height:390px}.hero-note{position:absolute;left:18px;bottom:16px;max-width:285px;padding:12px 14px;border-left:2px solid var(--amber);background:rgba(4,7,12,.78);color:#aeb9c7;font: .68rem/1.55 ui-monospace,SFMono-Regular,Menlo,monospace}.hero-note strong{display:block;color:var(--ink);margin-bottom:3px}.hero-tag{position:absolute;right:16px;top:16px;padding:7px 10px;border:1px solid rgba(110,231,189,.3);border-radius:999px;color:var(--mint);background:rgba(5,12,14,.75);font-size:.62rem;font-weight:900;letter-spacing:.08em}
+    .lab{padding:25px 0 82px}.section-head{display:flex;align-items:end;justify-content:space-between;gap:28px;margin-bottom:22px}.section-head h2{margin:7px 0 6px;font:650 clamp(2.5rem,4.8vw,4.8rem)/.96 Georgia,"Times New Roman",serif;letter-spacing:-.045em}.section-head p{max-width:760px;margin:0;color:var(--muted)}.live-block{text-align:right}.live{display:inline-flex;align-items:center;gap:8px;color:var(--mint);font-size:.67rem;font-weight:900;letter-spacing:.12em;text-transform:uppercase}.live::before{content:"";width:8px;height:8px;border-radius:50%;background:currentColor;box-shadow:0 0 0 5px rgba(110,231,189,.1)}.live-block small{display:block;color:var(--quiet);margin-top:5px}
+    .panel{border:1px solid var(--line);border-radius:var(--radius);background:rgba(13,18,28,.91);box-shadow:0 18px 46px rgba(0,0,0,.16)}
+    .transport{display:grid;grid-template-columns:auto minmax(260px,1fr) auto;align-items:center;gap:17px;padding:17px;margin-bottom:12px;background:linear-gradient(90deg,rgba(16,22,34,.97),rgba(8,12,19,.94))}.time-wrap{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:12px}.time-wrap label{color:var(--muted);font-size:.69rem;font-weight:850}.time-value{min-width:74px;text-align:right;color:var(--amber);font:800 .8rem ui-monospace,SFMono-Regular,Menlo,monospace}input[type=range]{width:100%;accent-color:var(--amber);cursor:pointer}.preset{border:1px solid var(--line);border-radius:999px;background:transparent;color:var(--muted);padding:6px 9px;font-size:.65rem;font-weight:850;cursor:pointer}.preset:hover,.preset[aria-pressed=true]{color:var(--ink);border-color:rgba(255,181,68,.55);background:rgba(255,181,68,.08)}
+    .metrics{display:grid;grid-template-columns:repeat(6,1fr);gap:10px;margin-bottom:12px}.metric{min-width:0;padding:15px 16px}.metric-label{color:var(--quiet);font-size:.59rem;font-weight:900;letter-spacing:.13em;text-transform:uppercase}.metric-value{margin-top:7px;font:650 clamp(1.4rem,2.2vw,2.35rem)/1 Georgia,"Times New Roman",serif;white-space:nowrap}.metric-note{margin-top:6px;color:var(--quiet);font-size:.58rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.metric.a .metric-value{color:var(--amber)}.metric.b .metric-value{color:var(--cyan)}.metric.info .metric-value{color:var(--violet)}.metric.temp .metric-value{color:var(--mint)}
+    .workbench{display:grid;grid-template-columns:minmax(0,1.45fr) minmax(350px,.55fr);gap:12px}.space-panel{position:relative;min-height:600px;overflow:hidden;background:#03060a}.space-panel canvas{display:block;width:100%;height:600px;touch-action:none;cursor:grab}.space-panel canvas.dragging{cursor:grabbing}.canvas-top{position:absolute;top:15px;left:17px;right:17px;display:flex;justify-content:space-between;align-items:flex-start;gap:10px;pointer-events:none}.canvas-title{padding:9px 11px;border-radius:10px;background:rgba(4,7,12,.76);backdrop-filter:blur(9px)}.canvas-title strong{display:block;font-size:.78rem}.canvas-title span{display:block;color:var(--muted);font-size:.63rem;margin-top:2px}.mode-switch{display:flex;padding:3px;border:1px solid var(--line);border-radius:999px;background:rgba(4,7,12,.78);pointer-events:auto}.mode-btn{border:0;border-radius:999px;background:transparent;color:var(--muted);padding:7px 10px;font-size:.62rem;font-weight:900;cursor:pointer}.mode-btn.active{background:var(--ink);color:#11141b}.canvas-bottom{position:absolute;left:17px;right:17px;bottom:15px;display:flex;align-items:end;justify-content:space-between;gap:12px;pointer-events:none}.detector-readout{max-width:340px;padding:12px 14px;border-left:2px solid var(--cyan);background:rgba(4,7,12,.8);color:#adb8c6;font: .66rem/1.5 ui-monospace,SFMono-Regular,Menlo,monospace}.detector-readout strong{display:block;color:var(--ink);margin-bottom:3px}.canvas-actions{pointer-events:auto;justify-content:flex-end}
+    .control-panel{padding:21px;display:flex;flex-direction:column}.panel-head{display:flex;align-items:center;justify-content:space-between;gap:12px}.panel-head h3{margin:6px 0 0;font:650 1.8rem/1 Georgia,"Times New Roman",serif;letter-spacing:-.035em}.equations{display:grid;gap:9px;margin:20px 0}.equation{padding:11px 12px;border:1px solid var(--line);border-radius:10px;background:rgba(4,7,12,.55);color:#dfe5ed;font:650 .66rem/1.65 ui-monospace,SFMono-Regular,Menlo,monospace}.equation.a{border-color:rgba(255,181,68,.3)}.equation.b{border-color:rgba(112,219,232,.3)}
+    .controls{display:grid;gap:12px}.control{padding:12px;border:1px solid var(--line);border-radius:12px;background:rgba(5,8,13,.38)}.control label{display:flex;justify-content:space-between;gap:12px;color:#d2dae4;font-size:.65rem;font-weight:850;margin-bottom:8px}.control output{color:var(--cyan);font-family:ui-monospace,SFMono-Regular,Menlo,monospace}.control-row{display:grid;grid-template-columns:1fr 1fr;gap:10px}.seed-input{width:100%;min-height:34px;border:1px solid var(--line);border-radius:8px;background:#070b12;color:var(--ink);padding:0 9px}.control-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:auto;padding-top:16px}.microcopy{color:var(--quiet);font-size:.62rem;margin:13px 0 0}
+    .analysis-grid{grid-column:1/-1;display:grid;grid-template-columns:minmax(0,1.25fr) minmax(340px,.75fr);gap:12px}.chart-panel,.info-panel,.ledger-panel,.compare-panel{padding:21px}.chart-panel svg{display:block;width:100%;height:auto;min-height:295px;touch-action:none;cursor:crosshair}.chart-legend{display:flex;gap:15px;flex-wrap:wrap;color:var(--muted);font-size:.65rem}.chart-legend span::before{content:"";display:inline-block;width:16px;height:3px;margin:0 7px 2px 0;border-radius:3px;background:var(--amber)}.chart-legend span:nth-child(2)::before{background:var(--cyan)}
+    .info-residual{margin:24px 0 5px;font:650 clamp(3rem,5vw,5.3rem)/.86 Georgia,"Times New Roman",serif;color:var(--violet);letter-spacing:-.055em}.info-caption{color:var(--muted);font-size:.68rem}.info-bars{display:grid;gap:13px;margin:25px 0}.info-row{display:grid;grid-template-columns:92px 1fr 68px;align-items:center;gap:9px;color:var(--muted);font-size:.64rem}.info-row b{color:var(--ink);text-align:right;font-family:ui-monospace,SFMono-Regular,Menlo,monospace}.track{height:9px;border-radius:99px;background:rgba(255,255,255,.08);overflow:hidden}.fill{height:100%;width:0;border-radius:inherit;transition:width .2s ease}.fill.a{background:linear-gradient(90deg,#c77700,var(--amber))}.fill.b{background:linear-gradient(90deg,#1d8795,var(--cyan))}.finding{padding:13px 14px;border-left:2px solid var(--violet);background:rgba(88,57,148,.17);color:#c4cada;font-size:.72rem}.finding strong{display:block;color:var(--ink);margin-bottom:3px}.boundary-note{margin-top:13px;color:var(--quiet);font-size:.62rem}
+    .lower-grid{grid-column:1/-1;display:grid;grid-template-columns:minmax(0,.9fr) minmax(0,1.1fr);gap:12px}.energy-svg{display:block;width:100%;height:auto;min-height:245px}.event-table{overflow:auto;max-height:295px;margin-top:15px}table{width:100%;border-collapse:collapse;font-size:.65rem}th,td{padding:10px 8px;text-align:right;border-bottom:1px solid var(--line);white-space:nowrap}th:first-child,td:first-child{text-align:left}th{color:var(--cyan);font-size:.57rem;text-transform:uppercase;letter-spacing:.1em}td{color:#cbd3de}
+    .research{padding:8px 0 88px}.compare-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.compare-panel{position:relative}.compare-code{width:39px;height:39px;display:grid;place-items:center;border-radius:50%;font:900 1rem Georgia,serif;color:#111}.compare-code.a{background:var(--amber)}.compare-code.b{background:var(--cyan)}.compare-title{display:flex;align-items:center;gap:12px}.compare-title h3{margin:3px 0 0;font:650 2rem/1 Georgia,"Times New Roman",serif}.specs{display:grid;gap:0;margin-top:16px}.spec{display:flex;justify-content:space-between;gap:16px;padding:10px 0;border-top:1px solid var(--line);font-size:.66rem}.spec span:first-child{color:var(--muted)}.spec span:last-child{text-align:right;font-weight:750}.safeguards{grid-column:1/-1;padding:24px;margin-top:12px}.safeguards h2{font:650 clamp(2.2rem,4vw,4rem)/1 Georgia,"Times New Roman",serif;letter-spacing:-.04em;margin:5px 0 16px}.claim-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.claim{padding:14px 16px;border-left:2px solid var(--violet);background:rgba(81,60,134,.18);color:#bcc4d0;font-size:.72rem}.claim strong{color:var(--ink)}
+    .pipeline{padding:24px;margin-top:12px}.stage-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:9px;margin-top:18px}.stage{position:relative;padding:15px;border:1px solid var(--line);border-radius:13px;background:rgba(5,8,13,.42)}.stage small{color:var(--violet);font:800 .57rem ui-monospace,monospace}.stage h3{margin:15px 0 5px;font-size:.82rem}.stage p{margin:0;color:var(--muted);font-size:.62rem}.report-card{display:flex;align-items:center;justify-content:space-between;gap:20px;padding:24px;margin-top:12px}.report-card h2{font:650 clamp(2rem,3.5vw,3.4rem)/1 Georgia,"Times New Roman",serif;margin:5px 0 8px}.report-card p{margin:0;color:var(--muted);font-size:.72rem;max-width:760px}
+    footer{display:flex;justify-content:space-between;gap:18px;padding:23px 0 36px;border-top:1px solid var(--line);color:var(--quiet);font-size:.62rem}.toast{position:fixed;left:50%;bottom:25px;z-index:10;transform:translate(-50%,20px);opacity:0;padding:10px 15px;border:1px solid rgba(112,219,232,.4);border-radius:999px;background:rgba(6,10,16,.95);font-size:.7rem;font-weight:850;transition:.22s ease;pointer-events:none}.toast.show{transform:translate(-50%,0);opacity:1}.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+    @media(max-width:1120px){.hero{grid-template-columns:1fr}.hero-visual{min-height:360px}.metrics{grid-template-columns:repeat(3,1fr)}.workbench{grid-template-columns:1fr}.control-panel{min-height:auto}.analysis-grid,.lower-grid{grid-template-columns:1fr}.stage-grid{grid-template-columns:repeat(3,1fr)}}
+    @media(max-width:760px){.shell{width:min(100% - 22px,1480px)}.topbar{min-height:62px}.brand span:last-child{display:none}.top-actions .button:first-child{display:none}.hero{padding-top:38px;gap:26px}h1{font-size:clamp(3.6rem,18vw,6rem)}.section-head{display:block}.live-block{text-align:left;margin-top:13px}.transport{grid-template-columns:1fr}.time-wrap{order:-1}.metrics{grid-template-columns:repeat(2,1fr)}.space-panel,.space-panel canvas{min-height:500px;height:500px}.control-row{grid-template-columns:1fr}.compare-grid{grid-template-columns:1fr}.claim-grid{grid-template-columns:1fr}.stage-grid{grid-template-columns:1fr 1fr}.report-card{align-items:flex-start;flex-direction:column}.canvas-bottom{align-items:stretch;flex-direction:column}.canvas-actions{align-self:flex-end}}
+    @media(max-width:480px){.hero-visual,.hero-visual canvas{height:320px;min-height:320px}.metrics{gap:7px}.metric{padding:12px}.metric-value{font-size:1.55rem}.mode-btn{padding:6px 7px}.stage-grid{grid-template-columns:1fr}.info-row{grid-template-columns:74px 1fr 54px}.space-panel,.space-panel canvas{min-height:460px;height:460px}}
+    @media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}*,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}}
   </style>
 </head>
 <body>
-<div class="wrap">
+  <header class="shell topbar">
+    <a class="brand" href="#top" aria-label="Black Hole Information Dynamics home"><span class="brand-mark" aria-hidden="true"></span><span>Black Hole Information Dynamics</span></a>
+    <nav class="top-actions" aria-label="Project links"><a class="button small primary" href="Black_Hole_Information_Dynamics_APA_Report.pdf" target="_blank" rel="noopener">Read the Report</a><a class="button small" href="https://github.com/salemmorelli1/Black-Hole" target="_blank" rel="noopener">GitHub ↗</a></nav>
+  </header>
 
-  <!-- Header -->
-  <div class="header">
-    <div class="title">
-      <h1><span>GasPrice</span>Forecast</h1>
-      <p>Weekly U.S. average regular gas price forecasting model.
-         Ensemble of sklearn, XGBoost, and LSTM sleeves — fused via inverse-RMSE weighting.
-         EIA data + FRED macro.
-         Runs every Monday after EIA release (~10 AM ET).</p>
-    </div>
-    <div class="controls">
-      <button class="primary" onclick="loadAll()">Refresh</button>
-      <button onclick="window.open('https://www.eia.gov/petroleum/gasdiesel/','_blank')">EIA Live</button>
-      <button onclick="window.open('prediction_log.csv','_blank')">Prediction Log</button>
-    </div>
-  </div>
-
-  <!-- Status bar -->
-  <div class="status-bar" id="statusBar">
-    Loading dashboard data…
-  </div>
-
-  <!-- Hero row -->
-  <div class="hero-row">
-    <div class="card hero-card">
-      <div class="label">This Week's Forecast</div>
-      <div class="hero-big" id="heroForecast">—</div>
-      <div class="hero-sub" id="heroForecastSub">Fusion ensemble</div>
-    </div>
-    <div class="card hero-card">
-      <div class="label">Confidence</div>
-      <div class="hero-big" id="heroConf">—</div>
-      <div class="hero-sub" id="heroConfSub">—</div>
-    </div>
-    <div class="card hero-card">
-      <div class="label">Current Regime</div>
-      <div class="hero-big" id="heroRegime">—</div>
-      <div class="hero-sub" id="heroRegimeSub">—</div>
-    </div>
-    <div class="card hero-card">
-      <div class="label">Model Health</div>
-      <div class="hero-big" id="heroHealth">—</div>
-      <div class="hero-sub" id="heroHealthSub">—</div>
-    </div>
-    <div class="card hero-card">
-      <div class="label">Live Attribution</div>
-      <div class="hero-big" id="heroMape">—</div>
-      <div class="hero-sub" id="heroMapeSub">All-time MAPE</div>
-    </div>
-    <div class="card hero-card">
-      <div class="label">Active Sleeves</div>
-      <div class="hero-big" id="heroSleeves">—</div>
-      <div class="hero-sub" id="heroDmTest">DM test: —</div>
-    </div>
-  </div>
-
-  <!-- Tabs -->
-  <div class="tabs">
-    <button class="tab-btn active" data-tab="forecastTab">Forecast</button>
-    <button class="tab-btn" data-tab="modelTab">Model Ops</button>
-    <button class="tab-btn" data-tab="liveTab">Live Attribution</button>
-    <button class="tab-btn" data-tab="regimeTab">Regimes</button>
-    <button class="tab-btn" data-tab="dataTab">Data</button>
-  </div>
-
-  <!-- ── Forecast Tab ─────────────────────────────────────────────────────── -->
-  <div class="tab-panel active" id="forecastTab">
-
-    <div class="grid two-col">
-      <div class="card">
-        <div class="label">Gas Price: Forecast vs Realized</div>
-        <div id="predChart" class="chart tall"></div>
+  <main id="top">
+    <section class="shell hero" aria-labelledby="page-title">
+      <div><div class="eyebrow">Statistics PhD research laboratory</div><h1 id="page-title">Information at the <em>horizon.</em></h1><p class="hero-copy">A differentiable experiment comparing black-hole evaporation as discrete stochastic packets and as continuous quantum-field flow—then asking what information a smooth representation may erase.</p>
+        <div class="pills"><span class="pill mint"><i></i>PyTorch · float64</span><span class="pill"><i></i>Point process + SDE</span><span class="pill amber"><i></i>Stopped at M<sub>floor</sub> &gt; 0</span></div>
+        <div class="hero-actions"><a class="button primary" href="#laboratory">Open horizon laboratory</a><button class="button" id="heroPlay" type="button">▶ Start evaporation</button></div>
       </div>
-      <div class="card">
-        <div class="label">Weekly Forecast Error ($/gal)</div>
-        <div id="errorChart" class="chart tall"></div>
+      <div class="hero-visual"><canvas id="heroCanvas" aria-hidden="true"></canvas><span class="hero-tag">LIVE COMPARISON</span><div class="hero-note"><strong>DRAG THE HORIZON</strong>The main laboratory turns this black hole into a movable latent state. Packet and flux telemetry respond in real time.</div></div>
+    </section>
+
+    <section class="shell lab" id="laboratory" aria-labelledby="lab-title">
+      <div class="section-head"><div><div class="kicker">Interactive horizon laboratory</div><h2 id="lab-title">Move the source. Watch information cross.</h2><p>Drag the black hole through the telemetry field, run or scrub evaporation, trigger a packet, and compare the same latent mass under discrete and continuous observation paradigms.</p></div><div class="live-block"><span class="live" id="runState">Simulation ready</span><small>Seeded dimensionless browser surrogate</small></div></div>
+
+      <div class="panel transport"><div class="transport-actions"><button class="button square primary" id="playButton" type="button" aria-label="Play evaporation">▶</button><button class="button square" id="resetButton" type="button" aria-label="Reset simulation">↺</button></div>
+        <div class="time-wrap"><label for="timeSlider">Evaporation time t / T</label><input id="timeSlider" type="range" min="0" max="1000" value="0"><output class="time-value" id="timeOutput" for="timeSlider">0.000</output></div>
+        <div class="preset-row" aria-label="Timeline presets"><button class="preset" type="button" data-time="0.20">Early</button><button class="preset" type="button" data-time="0.50">Midpoint</button><button class="preset" type="button" data-time="0.82">Late</button></div>
       </div>
-    </div>
 
-    <div class="grid two-col">
-      <div class="card">
-        <div class="label">Forecast Error Distribution</div>
-        <div id="distChart" class="chart"></div>
+      <div class="metrics" aria-label="Live model metrics">
+        <article class="panel metric"><div class="metric-label">Packet events</div><div class="metric-value" id="eventMetric">0</div><div class="metric-note">Paradigm A accepted marks</div></article>
+        <article class="panel metric a"><div class="metric-label">Mass A</div><div class="metric-value" id="massAMetric">4.000</div><div class="metric-note">Stopped jump process</div></article>
+        <article class="panel metric b"><div class="metric-label">Mass B</div><div class="metric-value" id="massBMetric">4.000</div><div class="metric-note">Euler–Maruyama flow</div></article>
+        <article class="panel metric info"><div class="metric-label">Information residual</div><div class="metric-value" id="residualMetric">0.000</div><div class="metric-note">ΔI = I<sub>B</sub> − I<sub>A</sub></div></article>
+        <article class="panel metric"><div class="metric-label">Packet intensity</div><div class="metric-value" id="lambdaMetric">0.500</div><div class="metric-note">λ(M<sub>A</sub>) = γ / M<sub>A</sub></div></article>
+        <article class="panel metric temp"><div class="metric-label">Hawking temperature</div><div class="metric-value" id="tempMetric">9.95e−3</div><div class="metric-note">T<sub>H</sub> = (8πM̄)<sup>−1</sup></div></article>
       </div>
-      <div class="card">
-        <div class="label">Latest Prediction Snapshot</div>
-        <div id="predSnapDate" class="hero-big" style="margin-bottom:6px;">—</div>
-        <div class="hero-sub">Most recent prediction log entry</div>
-        <div class="pill-row" id="snapPills"></div>
-        <div class="divider"></div>
-        <div class="kv-grid" id="snapKv"></div>
+
+      <div class="workbench">
+        <article class="panel space-panel">
+          <canvas id="spaceCanvas" tabindex="0" role="application" aria-label="Interactive evaporation field. Drag the black hole with a mouse or touch, or use the arrow keys."></canvas>
+          <div class="canvas-top"><div class="canvas-title"><strong>Latent mass → detector filtration</strong><span>Drag the black hole · arrow keys also work</span></div><div class="mode-switch" role="group" aria-label="Observation mode"><button class="mode-btn active" type="button" data-mode="both">A + B</button><button class="mode-btn" type="button" data-mode="a">Packets A</button><button class="mode-btn" type="button" data-mode="b">Flux B</button></div></div>
+          <div class="canvas-bottom"><div class="detector-readout" aria-live="polite"><strong id="detectorTitle">Detector waiting at infinity</strong><span id="detectorText">Run the timeline or emit a packet. Amber quanta preserve event identity; cyan flux smooths emissions into a field.</span></div><div class="canvas-actions"><button class="button small" id="centerButton" type="button">Center horizon</button><button class="button small cyan" id="emitButton" type="button">Emit one packet</button></div></div>
+        </article>
+
+        <aside class="panel control-panel"><div class="panel-head"><div><div class="kicker">Parameter control</div><h3>Two stopped processes</h3></div><button class="button small" id="newSeedButton" type="button">New seed</button></div>
+          <div class="equations"><div class="equation a">A: M<sub>tᵢ</sub> = M<sub>tᵢ₋₁</sub> − Eᵢ, &nbsp; λ(M) = γ/M</div><div class="equation b">B: dM = −αM<sup>−2</sup>dt + σ₀M<sup>−1</sup>dW</div></div>
+          <div class="controls"><div class="control-row"><div class="control"><label for="m0Control">Initial mass M₀ <output id="m0Output">4.00</output></label><input id="m0Control" type="range" min="2" max="8" step="0.1" value="4"></div><div class="control"><label for="gammaControl">Packet rate γ <output id="gammaOutput">2.00</output></label><input id="gammaControl" type="range" min="0.3" max="6" step="0.1" value="2"></div></div>
+            <div class="control-row"><div class="control"><label for="alphaControl">Flow drift α <output id="alphaOutput">0.200</output></label><input id="alphaControl" type="range" min="0.02" max="0.8" step="0.01" value="0.2"></div><div class="control"><label for="sigmaControl">Noise σ₀ <output id="sigmaOutput">0.040</output></label><input id="sigmaControl" type="range" min="0.005" max="0.15" step="0.005" value="0.04"></div></div>
+            <div class="control-row"><div class="control"><label for="efficiencyControl">Detector efficiency η <output id="efficiencyOutput">0.78</output></label><input id="efficiencyControl" type="range" min="20" max="100" value="78"></div><div class="control"><label for="floorControl">Mass floor <output id="floorOutput">0.25</output></label><input id="floorControl" type="range" min="10" max="100" value="25"></div></div>
+            <div class="control"><label for="seedControl">Random seed <output>reproducible</output></label><input class="seed-input" id="seedControl" type="number" min="1" value="20260820"></div>
+          </div>
+          <div class="control-actions"><button class="button primary" id="runButton" type="button">Run new experiment</button><button class="button" id="pauseButton" type="button">Pause</button></div>
+          <p class="microcopy">Controls regenerate a seeded, dimensionless illustration. Publication estimates must come from the repository’s float64 PyTorch likelihood engine.</p>
+        </aside>
+
+        <div class="analysis-grid">
+          <article class="panel chart-panel"><div class="panel-head"><div><div class="kicker">Parallel forward paths</div><h3>Mass trajectories</h3></div><span class="pill"><i></i>Drag chart to scrub</span></div>
+            <svg id="massSvg" viewBox="0 0 900 315" role="img" aria-labelledby="massChartTitle massChartDesc"><title id="massChartTitle">Black-hole mass under packet and continuous observation models</title><desc id="massChartDesc">Amber is the jump-process path and cyan is the stochastic differential-equation path.</desc><g id="massGrid"></g><path id="massPathA" fill="none" stroke="#ffb544" stroke-width="4" stroke-linejoin="round"></path><path id="massPathB" fill="none" stroke="#70dbe8" stroke-width="3" stroke-linejoin="round"></path><line id="massCursor" x1="45" x2="45" y1="25" y2="262" stroke="#f5f7fb" stroke-opacity=".48" stroke-dasharray="5 7"></line><circle id="massDotA" r="6" fill="#ffb544" stroke="#05080d" stroke-width="3"></circle><circle id="massDotB" r="5" fill="#70dbe8" stroke="#05080d" stroke-width="3"></circle><text x="44" y="294" fill="#748194" font-size="12">0</text><text x="435" y="294" fill="#748194" font-size="12">time t / T</text><text x="850" y="294" fill="#748194" font-size="12">1</text></svg>
+            <div class="chart-legend"><span>Paradigm A · discrete jumps</span><span>Paradigm B · continuous flow</span></div>
+          </article>
+          <article class="panel info-panel"><div class="kicker">Information evaluation engine</div><div class="info-residual" id="infoResidual">0.000</div><div class="info-caption">ΔI(t) = I<sub>B</sub>(t) − I<sub>A</sub>(t) · browser diagnostic units</div>
+            <div class="info-bars"><div class="info-row"><span>Packet score I<sub>A</sub></span><div class="track"><div class="fill a" id="infoFillA"></div></div><b id="infoValueA">0.000</b></div><div class="info-row"><span>Flux score I<sub>B</sub></span><div class="track"><div class="fill b" id="infoFillB"></div></div><b id="infoValueB">0.000</b></div></div>
+            <div class="finding"><strong id="findingTitle">No contrast yet</strong><span id="findingText">Advance the timeline to accumulate detector information under both observation rules.</span></div><p class="boundary-note">This panel is a filtration-inspired browser proxy, not a transfer-entropy estimate, theorem, or replacement for the centralized PyTorch information engine.</p>
+          </article>
+        </div>
+
+        <div class="lower-grid">
+          <article class="panel ledger-panel"><div class="panel-head"><div><div class="kicker">Marked point process</div><h3>Packet ledger</h3></div><span class="pill amber"><i></i><span id="ledgerCount">0 events</span></span></div><div class="event-table"><table><thead><tr><th>Event</th><th>Time</th><th>Energy Eᵢ</th><th>Mass after</th><th>Detector</th></tr></thead><tbody id="eventRows"><tr><td colspan="5">Run the experiment to generate marked emissions.</td></tr></tbody></table></div></article>
+          <article class="panel ledger-panel"><div class="panel-head"><div><div class="kicker">Energy accounting</div><h3>Cumulative emitted mass</h3></div><span class="pill"><i></i>same latent interval</span></div><svg class="energy-svg" id="energySvg" viewBox="0 0 900 270" role="img" aria-label="Cumulative emitted energy for packet and continuous models"><g id="energyGrid"></g><path id="energyPathA" fill="none" stroke="#ffb544" stroke-width="4"></path><path id="energyPathB" fill="none" stroke="#70dbe8" stroke-width="3"></path><line id="energyCursor" x1="45" x2="45" y1="22" y2="225" stroke="#f5f7fb" stroke-opacity=".4" stroke-dasharray="5 7"></line></svg><div class="chart-legend"><span>Packet energy</span><span>Continuous flux</span></div></article>
+        </div>
       </div>
-    </div>
-
-  </div>
-
-  <!-- ── Model Ops Tab ────────────────────────────────────────────────────── -->
-  <div class="tab-panel" id="modelTab">
-
-    <div class="grid three-col">
-      <div class="card">
-        <div class="label">Part 2 — Sklearn Ensemble</div>
-        <div class="kv-grid" id="part2Kv"></div>
-      </div>
-      <div class="card">
-        <div class="label">Part 2b — XGBoost Sleeve</div>
-        <div class="kv-grid" id="part2bKv"></div>
-      </div>
-      <div class="card">
-        <div class="label">Part 2a — LSTM Sleeve</div>
-        <div class="kv-grid" id="part2aKv"></div>
-      </div>
-    </div>
-
-    <div class="grid two-col">
-      <div class="card">
-        <div class="label">Fusion Weights (active sleeves)</div>
-        <div id="weightsChart" class="chart"></div>
-      </div>
-      <div class="card">
-        <div class="label">Sleeve Forecast Comparison (latest 26 weeks)</div>
-        <div id="sleeveChart" class="chart"></div>
-      </div>
-    </div>
-
-    <div class="card" style="margin-bottom:14px;">
-      <div class="label">Part 3 — Governance Summary</div>
-      <div class="kv-grid" id="part3Kv"></div>
-    </div>
-
-  </div>
-
-  <!-- ── Live Attribution Tab ─────────────────────────────────────────────── -->
-  <div class="tab-panel" id="liveTab">
-
-    <div class="grid two-col">
-      <div class="card">
-        <div class="label">Rolling MAPE (4w / 8w / 13w)</div>
-        <div id="rollingMapeChart" class="chart"></div>
-      </div>
-      <div class="card">
-        <div class="label">Beats Naive Carry (cumulative %)</div>
-        <div id="beatsNaiveChart" class="chart"></div>
-      </div>
-    </div>
-
-    <div class="grid two-col">
-      <div class="card">
-        <div class="label">Model Health Summary</div>
-        <div class="hero-big" id="healthBig" style="margin-bottom:8px;">—</div>
-        <div class="pill-row" id="healthPills"></div>
-        <div class="divider"></div>
-        <div class="kv-grid" id="healthKv"></div>
-      </div>
-      <div class="card">
-        <div class="label">Diebold-Mariano Test (vs Naive Carry)</div>
-        <div class="hero-big" id="dmBig" style="margin-bottom:8px;">—</div>
-        <div class="hero-sub" id="dmSub">H0: model losses = naive losses</div>
-        <div class="divider"></div>
-        <div class="kv-grid" id="dmKv"></div>
-      </div>
-    </div>
-
-    <div class="card">
-      <div class="label">Concept Drift Monitor</div>
-      <div class="kv-grid" id="driftKv"></div>
-    </div>
-
-  </div>
-
-  <!-- ── Regimes Tab ──────────────────────────────────────────────────────── -->
-  <div class="tab-panel" id="regimeTab">
-
-    <div class="grid two-col">
-      <div class="card">
-        <div class="label">Regime Distribution (all history)</div>
-        <div id="regimePieChart" class="chart"></div>
-      </div>
-      <div class="card">
-        <div class="label">Latest Regime</div>
-        <div class="hero-big" id="regimeBig" style="margin-bottom:8px;">—</div>
-        <div class="hero-sub" id="regimeSub">—</div>
-        <div class="divider"></div>
-        <div class="kv-grid" id="regimeKv"></div>
-      </div>
-    </div>
-
-    <div class="card">
-      <div class="label">Regime Timeline (prediction log)</div>
-      <div id="regimeTimeChart" class="chart tall"></div>
-    </div>
-
-  </div>
-
-  <!-- ── Data Tab ─────────────────────────────────────────────────────────── -->
-  <div class="tab-panel" id="dataTab">
-    <div class="card">
-      <div class="label">Prediction Log — Latest 20 Rows</div>
-      <div id="predLogTable" style="overflow-x:auto;"></div>
-    </div>
-  </div>
-
-  <footer>
-    GasPriceForecast &nbsp;|&nbsp; Data: EIA, FRED, yfinance &nbsp;|&nbsp;
-    Pipeline: sklearn + XGBoost + LSTM &nbsp;|&nbsp;
-    Runs weekly Monday ~10am ET &nbsp;|&nbsp;
-    <a href="https://github.com" target="_blank">GitHub</a>
-  </footer>
-</div>
-
-<script>
-// ─────────────────────────────────────────────────────────────────────────────
-// Data paths — these JSON/CSV files are written by the pipeline and committed
-// to docs/ by the GitHub Actions workflow.
-// ─────────────────────────────────────────────────────────────────────────────
-const PATHS = {
-  part2:    "gas_part2_summary.json",
-  part2b:   "gas_part2b_summary.json",
-  part2a:   "gas_part2a_summary.json",
-  part3:    "gas_part3_summary.json",
-  regime:   "gas_regime_meta.json",
-  attr:     "live_attribution_report.json",
-  predlog:  "prediction_log.csv",
-};
-
-// Plotly dark theme defaults
-const LAYOUT_BASE = {
-  paper_bgcolor: "transparent",
-  plot_bgcolor:  "transparent",
-  font: { family: "Inter, sans-serif", color: "#94b8d4", size: 11 },
-  margin: { l: 50, r: 20, t: 30, b: 50 },
-  xaxis: { gridcolor: "#1e3a5f", linecolor: "#1e3a5f", zerolinecolor: "#1e3a5f" },
-  yaxis: { gridcolor: "#1e3a5f", linecolor: "#1e3a5f", zerolinecolor: "#1e3a5f" },
-  legend: { bgcolor: "transparent", bordercolor: "#1e3a5f", borderwidth: 1 },
-};
-
-const COLOR = {
-  fusion: "#38bdf8", base: "#7c83ff", xgb: "#f59e0b", lstm: "#22c55e",
-  actual: "#ffffff", naive: "#6a8fa8", good: "#22c55e", warn: "#f59e0b",
-  bad: "#ef4444", regime0: "#38bdf8", regime1: "#ef4444",
-  regime2: "#f59e0b", regime3: "#a855f7",
-};
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Fetch helpers
-// ─────────────────────────────────────────────────────────────────────────────
-async function fetchJSON(url) {
-  try {
-    const r = await fetch(url + "?t=" + Date.now());
-    if (!r.ok) return null;
-    return await r.json();
-  } catch { return null; }
-}
-
-async function fetchCSV(url) {
-  try {
-    const r = await fetch(url + "?t=" + Date.now());
-    if (!r.ok) return null;
-    const text = await r.text();
-    return parseCSV(text);
-  } catch { return null; }
-}
-
-function parseCSV(text) {
-  const lines = text.trim().split("\n");
-  if (lines.length < 2) return [];
-  const headers = lines[0].split(",").map(h => h.trim().replace(/^"|"$/g, ""));
-  return lines.slice(1).map(line => {
-    const vals = line.split(",");
-    const obj = {};
-    headers.forEach((h, i) => {
-      const v = (vals[i] || "").trim().replace(/^"|"$/g, "");
-      obj[h] = v === "" ? NaN : (isNaN(v) ? v : parseFloat(v));
-    });
-    return obj;
-  });
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Utilities
-// ─────────────────────────────────────────────────────────────────────────────
-function fmt(v, d = 3) {
-  if (v === null || v === undefined || isNaN(v)) return "—";
-  return "$" + parseFloat(v).toFixed(d);
-}
-function fmtPct(v, d = 2) {
-  if (v === null || v === undefined || isNaN(v)) return "—";
-  return parseFloat(v).toFixed(d) + "%";
-}
-function fmtNum(v, d = 4) {
-  if (v === null || v === undefined || isNaN(v)) return "—";
-  return parseFloat(v).toFixed(d);
-}
-
-function pillClass(v, goodStr, warnStr) {
-  if (!v) return "muted";
-  const s = String(v).toUpperCase();
-  if (s.includes("HIGH") || s.includes("HEALTHY") || s.includes("RECOMMENDED") ||
-      s === "TRUE" || s.includes("BETTER") || s.includes("NORMAL")) return "good";
-  if (s.includes("WARN") || s.includes("LOW") || s.includes("DEFLATION")) return "warn";
-  if (s.includes("STOP") || s.includes("SHOCK") || s.includes("BAD") ||
-      s === "FALSE" || s.includes("WORSE")) return "bad";
-  return "info";
-}
-
-function makePills(pairs) {
-  return pairs.map(([label, cls]) =>
-    `<span class="pill ${cls}">${label}</span>`
-  ).join(" ");
-}
-
-function makeKvGrid(pairs) {
-  return pairs.map(([k, v]) =>
-    `<div class="kv-item"><div class="kv-key">${k}</div><div class="kv-val">${v}</div></div>`
-  ).join("");
-}
-
-function makeTable(rows, maxRows = 20) {
-  if (!rows || rows.length === 0) return "<p class='loading'>No data.</p>";
-  const cols = Object.keys(rows[0]);
-  const displayRows = rows.slice(-maxRows).reverse();
-  const header = cols.map(c => `<th>${c}</th>`).join("");
-  const body = displayRows.map(row =>
-    `<tr>${cols.map(c => {
-      const v = row[c];
-      return `<td>${(v === null || v === undefined || v === "") ? "—" : v}</td>`;
-    }).join("")}</tr>`
-  ).join("");
-  return `<style>
-    table{width:100%;border-collapse:collapse;font-size:0.76rem;}
-    th{background:#071526;color:#94b8d4;padding:7px 10px;text-align:left;
-       white-space:nowrap;position:sticky;top:0;}
-    td{padding:6px 10px;border-bottom:1px solid #1e3a5f;color:#e8f4fd;
-       white-space:nowrap;}
-    tr:hover td{background:#0b1c30;}
-  </style>
-  <div style="max-height:500px;overflow:auto;">
-  <table><thead><tr>${header}</tr></thead><tbody>${body}</tbody></table>
-  </div>`;
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Chart builders
-// ─────────────────────────────────────────────────────────────────────────────
-function plotForecastVsRealized(predlog) {
-  if (!predlog || predlog.length === 0) return;
-  const realized = predlog.filter(r => !isNaN(r.actual) && !isNaN(r.pred_fusion));
-  const unrealized = predlog.filter(r => isNaN(r.actual) && !isNaN(r.pred_fusion));
-
-  const traces = [];
-  if (realized.length) {
-    traces.push({ name: "Actual (EIA)", type: "scatter", mode: "lines+markers",
-      x: realized.map(r => r.decision_date || r.target_date),
-      y: realized.map(r => r.actual),
-      line: { color: COLOR.actual, width: 2 },
-      marker: { size: 5 } });
-    traces.push({ name: "Fusion Forecast", type: "scatter", mode: "lines+markers",
-      x: realized.map(r => r.decision_date || r.target_date),
-      y: realized.map(r => r.pred_fusion),
-      line: { color: COLOR.fusion, width: 2, dash: "dot" },
-      marker: { size: 4 } });
-    if (realized.some(r => !isNaN(r.pred_part2b))) {
-      traces.push({ name: "XGB", type: "scatter", mode: "lines",
-        x: realized.map(r => r.decision_date),
-        y: realized.map(r => r.pred_part2b),
-        line: { color: COLOR.xgb, width: 1, dash: "dash" }, opacity: 0.7 });
-    }
-    if (realized.some(r => !isNaN(r.pred_part2a))) {
-      traces.push({ name: "LSTM", type: "scatter", mode: "lines",
-        x: realized.map(r => r.decision_date),
-        y: realized.map(r => r.pred_part2a),
-        line: { color: COLOR.lstm, width: 1, dash: "dashdot" }, opacity: 0.7 });
-    }
-  }
-  if (unrealized.length) {
-    traces.push({ name: "Pending (no EIA yet)", type: "scatter", mode: "markers",
-      x: unrealized.map(r => r.target_date),
-      y: unrealized.map(r => r.pred_fusion),
-      marker: { color: COLOR.fusion, size: 10, symbol: "diamond",
-        line: { color: "#fff", width: 1.5 } } });
-  }
-  const layout = { ...LAYOUT_BASE,
-    yaxis: { ...LAYOUT_BASE.yaxis, title: { text: "$/gal", font: { size: 11 } } },
-    showlegend: true };
-  Plotly.newPlot("predChart", traces, layout, { responsive: true, displayModeBar: false });
-}
-
-function plotErrorChart(predlog) {
-  const realized = predlog.filter(r => !isNaN(r.actual) && !isNaN(r.pred_fusion));
-  if (!realized.length) return;
-  const dates  = realized.map(r => r.decision_date || r.target_date);
-  const errors = realized.map(r => r.actual - r.pred_fusion);
-  const colors = errors.map(e => e > 0 ? COLOR.good : COLOR.bad);
-  const traces = [
-    { name: "Error (actual − forecast)", type: "bar",
-      x: dates, y: errors,
-      marker: { color: colors, opacity: 0.85 } },
-    { name: "Zero line", type: "scatter", mode: "lines",
-      x: [dates[0], dates[dates.length - 1]], y: [0, 0],
-      line: { color: "#6a8fa8", width: 1, dash: "dot" } },
-  ];
-  const layout = { ...LAYOUT_BASE,
-    yaxis: { ...LAYOUT_BASE.yaxis, title: { text: "Error ($/gal)" } },
-    showlegend: false, bargap: 0.15 };
-  Plotly.newPlot("errorChart", traces, layout, { responsive: true, displayModeBar: false });
-}
-
-function plotErrorDist(predlog) {
-  const realized = predlog.filter(r => !isNaN(r.actual) && !isNaN(r.pred_fusion));
-  if (realized.length < 3) return;
-  const errors = realized.map(r => r.actual - r.pred_fusion);
-  const traces = [{ type: "histogram", x: errors, nbinsx: 20,
-    marker: { color: COLOR.fusion, opacity: 0.8 },
-    name: "Forecast Error Distribution" }];
-  const layout = { ...LAYOUT_BASE,
-    xaxis: { ...LAYOUT_BASE.xaxis, title: { text: "Error ($/gal)" } },
-    yaxis: { ...LAYOUT_BASE.yaxis, title: { text: "Count" } },
-    showlegend: false };
-  Plotly.newPlot("distChart", traces, layout, { responsive: true, displayModeBar: false });
-}
-
-function plotWeights(part3) {
-  if (!part3 || !part3.fusion_weights) return;
-  const weights = part3.fusion_weights;
-  const labels  = Object.keys(weights);
-  const values  = Object.values(weights);
-  const clrs    = [COLOR.base, COLOR.xgb, COLOR.lstm, COLOR.fusion];
-  const traces  = [{ type: "pie", labels, values,
-    marker: { colors: clrs.slice(0, labels.length) },
-    textfont: { color: "#fff" }, hole: 0.45 }];
-  const layout = { ...LAYOUT_BASE, showlegend: true,
-    legend: { ...LAYOUT_BASE.legend, orientation: "h", y: -0.1 },
-    margin: { l: 10, r: 10, t: 10, b: 10 } };
-  Plotly.newPlot("weightsChart", traces, layout, { responsive: true, displayModeBar: false });
-}
-
-function plotSleeveComparison(predlog) {
-  const tail = predlog.slice(-26);
-  if (!tail.length) return;
-  const dates = tail.map(r => r.decision_date || r.target_date);
-  const traces = [];
-  traces.push({ name: "Actual", type: "scatter", mode: "lines+markers",
-    x: dates, y: tail.map(r => r.actual),
-    line: { color: COLOR.actual, width: 2 }, marker: { size: 4 } });
-  traces.push({ name: "Fusion", type: "scatter", mode: "lines",
-    x: dates, y: tail.map(r => r.pred_fusion),
-    line: { color: COLOR.fusion, width: 2, dash: "dot" } });
-  if (tail.some(r => !isNaN(r.pred_part2))) {
-    traces.push({ name: "Sklearn", type: "scatter", mode: "lines",
-      x: dates, y: tail.map(r => r.pred_part2),
-      line: { color: COLOR.base, width: 1, dash: "dash" } });
-  }
-  if (tail.some(r => !isNaN(r.pred_part2b))) {
-    traces.push({ name: "XGB", type: "scatter", mode: "lines",
-      x: dates, y: tail.map(r => r.pred_part2b),
-      line: { color: COLOR.xgb, width: 1, dash: "dash" } });
-  }
-  if (tail.some(r => !isNaN(r.pred_part2a))) {
-    traces.push({ name: "LSTM", type: "scatter", mode: "lines",
-      x: dates, y: tail.map(r => r.pred_part2a),
-      line: { color: COLOR.lstm, width: 1, dash: "dashdot" } });
-  }
-  const layout = { ...LAYOUT_BASE,
-    yaxis: { ...LAYOUT_BASE.yaxis, title: { text: "$/gal" } },
-    showlegend: true };
-  Plotly.newPlot("sleeveChart", traces, layout, { responsive: true, displayModeBar: false });
-}
-
-function plotRollingMape(attr) {
-  if (!attr || !attr.rolling_metrics) return;
-  const rm = attr.rolling_metrics;
-  const windows = Object.keys(rm).sort();
-  const mapes   = windows.map(w => rm[w].mape);
-  const ns      = windows.map(w => rm[w].n);
-  const traces  = [{
-    type: "bar", x: windows, y: mapes,
-    text: mapes.map((m, i) => m != null ? `${m.toFixed(2)}%<br>n=${ns[i]}` : "—"),
-    textposition: "outside",
-    marker: { color: mapes.map(m => m > 6 ? COLOR.bad : m > 3 ? COLOR.warn : COLOR.good) },
-  }];
-  // Threshold lines
-  const layout = { ...LAYOUT_BASE,
-    yaxis: { ...LAYOUT_BASE.yaxis, title: { text: "MAPE (%)" }, range: [0, null] },
-    showlegend: false,
-    shapes: [
-      { type: "line", x0: -0.5, x1: windows.length - 0.5, y0: 3, y1: 3,
-        line: { color: COLOR.warn, width: 1, dash: "dot" } },
-      { type: "line", x0: -0.5, x1: windows.length - 0.5, y0: 6, y1: 6,
-        line: { color: COLOR.bad, width: 1, dash: "dot" } },
-    ] };
-  Plotly.newPlot("rollingMapeChart", traces, layout, { responsive: true, displayModeBar: false });
-}
-
-function plotBeatsNaive(predlog) {
-  const realized = predlog.filter(r => !isNaN(r.actual) && !isNaN(r.pred_fusion));
-  if (realized.length < 3) return;
-  let cumulativePct = [];
-  let count = 0;
-  realized.forEach((r, i) => {
-    const naivePred = i > 0 ? realized[i-1].actual : NaN;
-    if (!isNaN(naivePred)) {
-      const modelErr = Math.abs(r.actual - r.pred_fusion);
-      const naiveErr = Math.abs(r.actual - naivePred);
-      if (modelErr < naiveErr) count++;
-      cumulativePct.push(count / (i) * 100);
-    } else {
-      cumulativePct.push(null);
-    }
-  });
-  const dates = realized.map(r => r.decision_date || r.target_date);
-  const traces = [
-    { name: "Beats Naive %", type: "scatter", mode: "lines",
-      x: dates, y: cumulativePct,
-      line: { color: COLOR.fusion, width: 2 } },
-    { name: "50% line", type: "scatter", mode: "lines",
-      x: [dates[0], dates[dates.length-1]], y: [50, 50],
-      line: { color: "#6a8fa8", width: 1, dash: "dot" } },
-  ];
-  const layout = { ...LAYOUT_BASE,
-    yaxis: { ...LAYOUT_BASE.yaxis, title: { text: "Beats Naive %" }, range: [0, 100] },
-    showlegend: false };
-  Plotly.newPlot("beatsNaiveChart", traces, layout, { responsive: true, displayModeBar: false });
-}
-
-function plotRegimePie(regime) {
-  if (!regime || !regime.regime_distribution) return;
-  const dist = regime.regime_distribution;
-  const labels = Object.keys(dist);
-  const values = Object.values(dist);
-  const clrs   = [COLOR.regime0, COLOR.regime1, COLOR.regime2, COLOR.regime3];
-  const traces = [{ type: "pie", labels, values,
-    marker: { colors: clrs.slice(0, labels.length) },
-    textfont: { color: "#fff" }, hole: 0.4 }];
-  const layout = { ...LAYOUT_BASE, showlegend: true,
-    legend: { ...LAYOUT_BASE.legend, orientation: "h", y: -0.1 },
-    margin: { l: 10, r: 10, t: 10, b: 10 } };
-  Plotly.newPlot("regimePieChart", traces, layout, { responsive: true, displayModeBar: false });
-}
-
-function plotRegimeTimeline(predlog) {
-  if (!predlog || predlog.length === 0) return;
-  const hasRegime = predlog.filter(r => r.regime_label && r.regime_label !== "");
-  if (!hasRegime.length) return;
-
-  const regimeColors = {
-    "NORMAL": COLOR.regime0, "SUPPLY_SHOCK": COLOR.regime1,
-    "DEMAND_SURGE": COLOR.regime2, "DEFLATION": COLOR.regime3, "UNKNOWN": "#6a8fa8"
-  };
-  const regimeMap = { "NORMAL": 0, "SUPPLY_SHOCK": 3, "DEMAND_SURGE": 2, "DEFLATION": 1, "UNKNOWN": 0 };
-
-  const traces = [
-    { name: "Gas Price", type: "scatter", mode: "lines",
-      x: predlog.map(r => r.decision_date), y: predlog.map(r => r.actual),
-      line: { color: COLOR.actual, width: 2 } },
-  ];
-  // Regime background shading
-  const uniqueRegimes = [...new Set(hasRegime.map(r => r.regime_label))];
-  uniqueRegimes.forEach(reg => {
-    const rows = hasRegime.filter(r => r.regime_label === reg);
-    traces.push({ name: reg, type: "scatter", mode: "markers",
-      x: rows.map(r => r.decision_date), y: rows.map(r => r.actual || r.pred_fusion),
-      marker: { color: regimeColors[reg] || "#6a8fa8", size: 8, opacity: 0.7 } });
-  });
-
-  const layout = { ...LAYOUT_BASE,
-    yaxis: { ...LAYOUT_BASE.yaxis, title: { text: "$/gal" } },
-    showlegend: true };
-  Plotly.newPlot("regimeTimeChart", traces, layout, { responsive: true, displayModeBar: false });
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Hero + KV updaters
-// ─────────────────────────────────────────────────────────────────────────────
-function updateHero(part3, attr, regime) {
-  // Forecast
-  const pred = part3 && part3.latest_prediction || {};
-  const pf = pred.pred_fusion;
-  const fEl = document.getElementById("heroForecast");
-  if (pf !== undefined && pf !== null && !isNaN(pf)) {
-    fEl.textContent = fmt(pf);
-    fEl.className = "hero-big";
-  }
-  document.getElementById("heroForecastSub").textContent =
-    `Target: ${pred.target_date || "—"} | Decision: ${pred.decision_date || "—"}`;
-
-  // Confidence
-  const conf = pred.confidence || "—";
-  const cEl = document.getElementById("heroConf");
-  cEl.textContent = conf.replace("_CONF", "");
-  cEl.className = "hero-big " + (conf.includes("HIGH") ? "good" : "warn");
-  document.getElementById("heroConfSub").textContent =
-    `Active sleeves: ${(part3 && part3.active_sleeves || []).join(", ") || "—"}`;
-
-  // Regime
-  const reg = pred.regime || (regime && regime.latest_regime) || "—";
-  const rEl = document.getElementById("heroRegime");
-  rEl.textContent = reg.replace("_", " ");
-  rEl.className = "hero-big " +
-    (reg.includes("SUPPLY_SHOCK") ? "bad" : reg.includes("DEMAND_SURGE") ? "warn" : "");
-  document.getElementById("heroRegimeSub").textContent =
-    `Latest week: ${regime && regime.latest_week || "—"}`;
-
-  // Model health
-  const health = attr && attr.model_health && attr.model_health.health_status || "—";
-  const hEl = document.getElementById("heroHealth");
-  hEl.textContent = health.replace("_", " ");
-  hEl.className = "hero-big " +
-    (health === "HEALTHY" ? "good" : health === "WARNING" ? "warn" : health.includes("STOP") ? "bad" : "");
-  document.getElementById("heroHealthSub").textContent =
-    `n=${attr && attr.n_realized || 0} realized observations`;
-
-  // MAPE
-  const mape = attr && attr.all_time_metrics && attr.all_time_metrics.mape;
-  const mEl = document.getElementById("heroMape");
-  mEl.textContent = mape != null ? fmtPct(mape) : "—";
-  mEl.className = "hero-big " + (mape > 6 ? "bad" : mape > 3 ? "warn" : mape != null ? "good" : "");
-  const mae = attr && attr.all_time_metrics && attr.all_time_metrics.mae;
-  document.getElementById("heroMapeSub").textContent =
-    `MAE: ${mae != null ? fmt(mae) + "/gal" : "—"} | All-time MAPE`;
-
-  // Sleeves
-  const sleeves = part3 && part3.active_sleeves || [];
-  document.getElementById("heroSleeves").textContent = sleeves.length || "—";
-  const dm = attr && attr.diebold_mariano || {};
-  document.getElementById("heroDmTest").textContent =
-    `DM: ${dm.dm_interpretation ? dm.dm_interpretation.replace(/_/g, " ") : "—"} (t=${fmtNum(dm.dm_t_stat, 2)})`;
-}
-
-function updateStatusBar(part3, attr) {
-  const el = document.getElementById("statusBar");
-  const pred = part3 && part3.latest_prediction || {};
-  const health = attr && attr.model_health && attr.model_health.health_status || "UNKNOWN";
-  const n = attr && attr.n_realized || 0;
-  const healthColor = health === "HEALTHY" ? "var(--good)"
-    : health === "WARNING" ? "var(--warn)" : "var(--bad)";
-
-  el.innerHTML = `
-    <b>Last run:</b> ${part3 && part3.run_utc ? part3.run_utc.slice(0,16).replace("T"," ") + " UTC" : "—"}
-    &nbsp;|&nbsp;
-    <b>Forecast:</b> ${fmt(pred.pred_fusion)}/gal → target week of ${pred.target_date || "—"}
-    &nbsp;|&nbsp;
-    <b>Confidence:</b> ${pred.confidence || "—"}
-    &nbsp;|&nbsp;
-    <b>Health:</b> <span style="color:${healthColor};font-weight:700;">${health}</span>
-    &nbsp;|&nbsp;
-    <b>Realized obs:</b> ${n}
-  `;
-}
-
-function updateSnapshots(predlog, part3) {
-  if (!predlog || !predlog.length) return;
-  const latest = predlog[predlog.length - 1];
-  document.getElementById("predSnapDate").textContent =
-    latest.decision_date || latest.target_date || "—";
-
-  const pills = [
-    [latest.confidence || "—", pillClass(latest.confidence)],
-    [latest.regime_label || "—", pillClass(latest.regime_label)],
-    [latest.actual != null && !isNaN(latest.actual) ? "Realized" : "Pending", "info"],
-  ];
-  document.getElementById("snapPills").innerHTML = makePills(pills);
-
-  const pairs = [
-    ["Fusion Forecast", fmt(latest.pred_fusion)],
-    ["Sklearn Base", fmt(latest.pred_part2)],
-    ["XGB Forecast",  fmt(latest.pred_part2b)],
-    ["LSTM Forecast", fmt(latest.pred_part2a)],
-    ["Actual (EIA)",  !isNaN(latest.actual) ? fmt(latest.actual) : "Pending EIA"],
-    ["MAE",           !isNaN(latest.mae) ? fmt(latest.mae) : "—"],
-    ["MAPE",          !isNaN(latest.mape) ? fmtPct(latest.mape) : "—"],
-    ["Direction",     latest.direction_correct !== "" && !isNaN(latest.direction_correct)
-                        ? (latest.direction_correct > 0 ? "Correct" : "Wrong") : "Pending"],
-  ];
-  document.getElementById("snapKv").innerHTML = makeKvGrid(pairs);
-}
-
-function updateModelKv(part2, part2b, part2a, part3) {
-  if (part2) {
-    const vm = part2.val_metrics || {};
-    const lp = part2.latest_predictions || {};
-    const p2pairs = [
-      ["Ensemble Forecast", fmt(lp.pred_ensemble)],
-      ["Val RMSE", fmtNum(vm.hgb_rmse || vm.ensemble_rmse)],
-      ["Val MAE",  fmtNum(vm.hgb_mae)],
-      ["Val MAPE", fmtPct(vm.hgb_mape)],
-      ["DirAcc",   fmtPct(vm.hgb_dir_acc * 100)],
-      ["Version",  part2.script_version || "—"],
-    ];
-    document.getElementById("part2Kv").innerHTML = makeKvGrid(p2pairs);
-  }
-  if (part2b) {
-    const lf = part2b.latest_forecast || {};
-    const p2bpairs = [
-      ["Recommended", part2b.xgb_sleeve_recommended ? "YES" : "NO"],
-      ["XGB Forecast", fmt(lf.pred_xgb)],
-      ["Val RMSE",     fmtNum(part2b.xgb_val_rmse)],
-      ["Baseline RMSE",fmtNum(part2b.baseline_val_rmse)],
-      ["MAPE",         fmtPct(part2b.xgb_metrics && part2b.xgb_metrics.val_mape)],
-      ["Configs",      part2b.n_configs_trained || "—"],
-    ];
-    document.getElementById("part2bKv").innerHTML = makeKvGrid(p2bpairs);
-  }
-  if (part2a) {
-    const lf = part2a.latest_forecast || {};
-    const arch = part2a.architecture || {};
-    const p2apairs = [
-      ["Recommended", part2a.lstm_sleeve_recommended ? "YES" : "NO"],
-      ["LSTM Forecast", fmt(lf.pred_lstm)],
-      ["Val RMSE",      fmtNum(part2a.lstm_val_rmse)],
-      ["Val MAPE",      fmtPct(part2a.lstm_val_mape)],
-      ["Seq Length",    arch.sequence_length || "—"],
-      ["Parameters",    arch.n_parameters ? arch.n_parameters.toLocaleString() : "—"],
-    ];
-    document.getElementById("part2aKv").innerHTML = makeKvGrid(p2apairs);
-  }
-  if (part3) {
-    const pred = part3.latest_prediction || {};
-    const w = part3.fusion_weights || {};
-    const p3pairs = [
-      ["Active Sleeves",   (part3.active_sleeves || []).join(", ") || "—"],
-      ["Sklearn Weight",   w.part2 != null ? (w.part2 * 100).toFixed(1) + "%" : "—"],
-      ["XGB Weight",       w.part2b != null ? (w.part2b * 100).toFixed(1) + "%" : "—"],
-      ["LSTM Weight",      w.part2a != null ? (w.part2a * 100).toFixed(1) + "%" : "—"],
-      ["Prediction Log n", part3.prediction_log_rows || "—"],
-      ["Last Run",         part3.run_utc ? part3.run_utc.slice(0,10) : "—"],
-    ];
-    document.getElementById("part3Kv").innerHTML = makeKvGrid(p3pairs);
-  }
-}
-
-function updateLiveAttr(attr) {
-  if (!attr) return;
-  const health = attr.model_health || {};
-  const dm     = attr.diebold_mariano || {};
-  const drift  = attr.concept_drift || {};
-  const m      = attr.all_time_metrics || {};
-
-  document.getElementById("healthBig").textContent = health.health_status || "—";
-  const hp = [];
-  if (health.health_status) hp.push([health.health_status.replace(/_/g," "), pillClass(health.health_status)]);
-  (health.issues || []).forEach(issue => hp.push([issue.slice(0,40)+"…", "warn"]));
-  document.getElementById("healthPills").innerHTML = makePills(hp);
-
-  const hpairs = [
-    ["n Realized",   health.n_realized || 0],
-    ["All-time MAE", fmt(m.mae)],
-    ["All-time RMSE",fmt(m.rmse)],
-    ["All-time MAPE",fmtPct(m.mape)],
-    ["Dir Accuracy", fmtPct(m.dir_acc != null ? m.dir_acc * 100 : null)],
-    ["Recommendation", health.recommendation ? health.recommendation.slice(0,60) : "—"],
-  ];
-  document.getElementById("healthKv").innerHTML = makeKvGrid(hpairs);
-
-  // DM test
-  document.getElementById("dmBig").textContent = dm.dm_interpretation
-    ? dm.dm_interpretation.replace(/_/g," ") : "—";
-  const dmEl = document.getElementById("dmBig");
-  dmEl.className = "hero-big " + pillClass(dm.dm_interpretation);
-  const dmpairs = [
-    ["t-statistic",  fmtNum(dm.dm_t_stat, 3)],
-    ["p-value",      fmtNum(dm.dm_p_value, 4)],
-    ["Min t for sig","1.64 (90% CI)"],
-    ["Beats Naive", attr.beats_naive_pct != null ? fmtPct(attr.beats_naive_pct) : "—"],
-  ];
-  document.getElementById("dmKv").innerHTML = makeKvGrid(dmpairs);
-
-  // Drift
-  const driftpairs = [
-    ["Status",         drift.status || "—"],
-    ["Recent RMSE",    fmt(drift.recent_rmse)],
-    ["Historical RMSE",fmt(drift.historical_rmse)],
-    ["RMSE Ratio",     fmtNum(drift.rmse_ratio, 2)],
-    ["Drift Detected", drift.drift_detected ? "YES" : "NO"],
-    ["Warn threshold", "1.5×"],
-    ["Stop threshold", "2.0×"],
-  ];
-  document.getElementById("driftKv").innerHTML = makeKvGrid(driftpairs);
-}
-
-function updateRegimeTab(regime) {
-  if (!regime) return;
-  document.getElementById("regimeBig").textContent =
-    regime.latest_regime ? regime.latest_regime.replace(/_/g," ") : "—";
-  const rEl = document.getElementById("regimeBig");
-  rEl.className = "hero-big " + pillClass(regime.latest_regime);
-  document.getElementById("regimeSub").textContent =
-    `Latest week: ${regime.latest_week || "—"} | Model: ${regime.model_type || "—"}`;
-
-  const dist = regime.regime_distribution || {};
-  const total = Object.values(dist).reduce((a,b) => a+b, 0) || 1;
-  const rpairs = [
-    ["Model type",    regime.model_type || "—"],
-    ["Train rows",    regime.n_train_rows || "—"],
-    ["Features used", (regime.selected_features || []).length],
-    ...Object.entries(dist).map(([k, v]) =>
-      [k.replace(/_/g," "), `${v} weeks (${(v/total*100).toFixed(1)}%)`]),
-  ];
-  document.getElementById("regimeKv").innerHTML = makeKvGrid(rpairs);
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Master load
-// ─────────────────────────────────────────────────────────────────────────────
-async function loadAll() {
-  document.getElementById("statusBar").textContent = "Loading…";
-  try {
-    const [part2, part2b, part2a, part3, regime, attr, predlog] = await Promise.all([
-      fetchJSON(PATHS.part2),
-      fetchJSON(PATHS.part2b),
-      fetchJSON(PATHS.part2a),
-      fetchJSON(PATHS.part3),
-      fetchJSON(PATHS.regime),
-      fetchJSON(PATHS.attr),
-      fetchCSV(PATHS.predlog),
-    ]);
-
-    // Hero
-    updateHero(part3, attr, regime);
-    updateStatusBar(part3, attr);
-
-    // Forecast tab
-    if (predlog) {
-      plotForecastVsRealized(predlog);
-      plotErrorChart(predlog);
-      plotErrorDist(predlog);
-      updateSnapshots(predlog, part3);
-    }
-
-    // Model ops tab
-    updateModelKv(part2, part2b, part2a, part3);
-    plotWeights(part3);
-    if (predlog) plotSleeveComparison(predlog);
-
-    // Live attribution tab
-    updateLiveAttr(attr);
-    if (attr) plotRollingMape(attr);
-    if (predlog) plotBeatsNaive(predlog);
-
-    // Regime tab
-    updateRegimeTab(regime);
-    plotRegimePie(regime);
-    if (predlog) plotRegimeTimeline(predlog);
-
-    // Data tab
-    if (predlog) document.getElementById("predLogTable").innerHTML =
-      makeTable(predlog, 20);
-
-    document.getElementById("statusBar").textContent =
-      "Dashboard loaded. " +
-      (part3 && part3.run_utc ? "Pipeline last ran: " + part3.run_utc.slice(0,16).replace("T"," ") + " UTC" : "");
-  } catch (e) {
-    document.getElementById("statusBar").innerHTML =
-      `<span style="color:var(--bad)">Error loading dashboard: ${e.message}</span>`;
-    console.error(e);
-  }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Tab switching
-// ─────────────────────────────────────────────────────────────────────────────
-document.querySelectorAll(".tab-btn").forEach(btn => {
-  btn.addEventListener("click", () => {
-    document.querySelectorAll(".tab-btn").forEach(b => b.classList.remove("active"));
-    document.querySelectorAll(".tab-panel").forEach(p => p.classList.remove("active"));
-    btn.classList.add("active");
-    document.getElementById(btn.dataset.tab).classList.add("active");
-    // Trigger resize for Plotly charts that were hidden
-    window.dispatchEvent(new Event("resize"));
-  });
-});
-
-// Init
-loadAll();
-</script>
+    </section>
+
+    <section class="shell research" aria-labelledby="paradigm-title"><div class="section-head"><div><div class="kicker">Observation paradigms</div><h2 id="paradigm-title">The same evaporation, two statistical geometries.</h2></div></div>
+      <div class="compare-grid"><article class="panel compare-panel"><div class="compare-title"><span class="compare-code a">A</span><div><div class="kicker">Discrete packet jump process</div><h3>Events remain visible.</h3></div></div><div class="equation a">M<sub>tᵢ</sub> = M<sub>tᵢ₋₁</sub> − Eᵢ,&nbsp; λ(M<sub>t</sub>) = γ/M<sub>t</sub></div><div class="specs"><div class="spec"><span>State update</span><span>Discontinuous jump</span></div><div class="spec"><span>Observation</span><span>Time + thermal energy mark</span></div><div class="spec"><span>Likelihood</span><span>Compensator + mark density</span></div><div class="spec"><span>Autograd risk</span><span>Event-topology changes</span></div></div></article>
+        <article class="panel compare-panel"><div class="compare-title"><span class="compare-code b">B</span><div><div class="kicker">Continuous quantum-field flow</div><h3>Events become flux.</h3></div></div><div class="equation b">dM<sub>t</sub> = −αM<sub>t</sub><sup>−2</sup>dt + σ₀M<sub>t</sub><sup>−1</sup>dW<sub>t</sub></div><div class="specs"><div class="spec"><span>State update</span><span>Continuous increment</span></div><div class="spec"><span>Observation</span><span>Smoothed field telemetry</span></div><div class="spec"><span>Likelihood</span><span>Transition density / Girsanov</span></div><div class="spec"><span>Numerical risk</span><span>Singular drift + stiffness</span></div></div></article></div>
+      <article class="panel safeguards"><div class="kicker">Scientific safeguards</div><h2>What the interactive model does—and does not—claim.</h2><div class="claim-grid"><div class="claim"><strong>It does:</strong> expose both equations, animate seeded stopped paths, preserve packet identity in a ledger, compare telemetry proxies, and make the information-loss hypothesis explorable.</div><div class="claim"><strong>It does not:</strong> treat M = 0 as semiclassically valid, call the browser contrast transfer entropy, infer a theorem from one sample path, or replace the trained float64 likelihood engine.</div></div></article>
+      <article class="panel pipeline"><div class="kicker">Auditable research pipeline</div><h2>One question, five controlled stages.</h2><div class="stage-grid"><div class="stage"><small>PART 00</small><h3>Validate</h3><p>Check positivity, cutoffs, moments, and drift matching.</p></div><div class="stage"><small>PART 01</small><h3>Packets</h3><p>Simulate event times, thermal marks, and jump paths.</p></div><div class="stage"><small>PART 02</small><h3>Flows</h3><p>Integrate the SDE and retain transition scores.</p></div><div class="stage"><small>PART 03</small><h3>Information</h3><p>Estimate Fisher geometry and the residual ΔI.</p></div><div class="stage"><small>PART 04</small><h3>Verify</h3><p>Run invariants, unit tests, and repository checks.</p></div></div></article>
+      <article class="panel report-card"><div><div class="kicker">PhD research report</div><h2>Black Hole Information Dynamics</h2><p>Read the complete APA-formatted mathematical framework, statistical analysis, computational findings, figures, tables, references, and reproducible Python appendix.</p></div><a class="button primary" href="Black_Hole_Information_Dynamics_APA_Report.pdf" target="_blank" rel="noopener">Read the Report</a></article>
+    </section>
+  </main>
+  <footer class="shell"><span>Black Hole Information Dynamics · Salem Morelli</span><span>PyTorch · marked point processes · Itô diffusions · Fisher information</span></footer><div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+  <script>
+    (()=>{"use strict";
+      const $=id=>document.getElementById(id), clamp=(x,a=0,b=1)=>Math.max(a,Math.min(b,x)),lerp=(a,b,u)=>a+(b-a)*u;
+      const reduced=matchMedia("(prefers-reduced-motion: reduce)").matches;
+      const state={m0:4,gamma:2,alpha:.2,sigma:.04,eta:.78,floor:.25,seed:20260820,time:0,playing:!reduced,speed:.045,mode:"both",bh:{x:.28,y:.53},drag:false,pulse:0,forced:[],path:[],events:[],stars:[],flux:[],last:performance.now(),uiLast:0,ledgerKey:""};
+      function rng(seed){return function(){let t=seed+=0x6D2B79F5;t=Math.imul(t^t>>>15,t|1);t^=t+Math.imul(t^t>>>7,t|61);return((t^t>>>14)>>>0)/4294967296}}
+      function normal(random){const u=Math.max(1e-12,random()),v=random();return Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v)}
+      function simulate(){const random=rng(state.seed),n=800,dt=10/n;let a=state.m0,b=state.m0,ia=0,ib=0;state.path=[];state.events=[];state.ledgerKey="";
+        const forcedSteps=new Set(state.forced.map(t=>Math.round(clamp(t)*n)));
+        for(let i=0;i<=n;i++){const tau=i/n,t=i*dt;if(i>0){const lambda=state.gamma/Math.max(a,state.floor);const stochastic=random()<1-Math.exp(-lambda*dt);const forced=forcedSteps.has(i);if((stochastic||forced)&&a>state.floor){const thermal=(-Math.log(Math.max(random(),1e-9))-Math.log(Math.max(random(),1e-9))-Math.log(Math.max(random(),1e-9)))/3;const energy=Math.min(a-state.floor,.028*(state.m0/Math.max(a,state.floor))*thermal);if(energy>0){a=Math.max(state.floor,a-energy);ia+=state.eta*(.006+.014*(thermal**2));state.events.push({index:state.events.length+1,tau,time:t,energy,mass:a,forced})}}
+            ia+=state.eta*lambda*dt*.0018;const drift=-state.alpha/(Math.max(b,state.floor)**2)*dt;const noise=state.sigma/Math.max(b,state.floor)*Math.sqrt(dt)*normal(random);b=Math.max(state.floor,b+drift+noise);const variance=(state.sigma/Math.max(b,state.floor))**2+.0005;ib+=state.eta*((state.alpha/Math.max(b,state.floor)**2)**2/variance)*dt*.00055}
+          state.path.push({tau,a,b,ia,ib,eA:state.m0-a,eB:state.m0-b})}
+        buildCharts();updateAll()}
+      function current(){return state.path[Math.min(state.path.length-1,Math.round(state.time*(state.path.length-1)))]||{a:state.m0,b:state.m0,ia:0,ib:0,eA:0,eB:0}}
+      function visibleEvents(){return state.events.filter(e=>e.tau<=state.time)}
+      function initParticles(){const r=rng(state.seed^0xABCD);state.stars=Array.from({length:130},()=>({x:r(),y:r(),r:lerp(.4,1.45,r()),a:lerp(.15,.82,r())}));state.flux=Array.from({length:60},(_,i)=>({phase:i/60+r()*.05,offset:lerp(-1,1,r()),energy:lerp(.25,1,r()),j:r()*50}))}
+      const hero=$("heroCanvas"),hctx=hero.getContext("2d"),space=$("spaceCanvas"),sctx=space.getContext("2d");let hw=1,hh=1,sw=1,sh=1;
+      function sizeCanvas(c,ctx){const rect=c.getBoundingClientRect(),dpr=Math.min(devicePixelRatio||1,2);c.width=Math.max(1,Math.round(rect.width*dpr));c.height=Math.max(1,Math.round(rect.height*dpr));ctx.setTransform(dpr,0,0,dpr,0,0);return[rect.width,rect.height]}
+      function resize(){[hw,hh]=sizeCanvas(hero,hctx);[sw,sh]=sizeCanvas(space,sctx)}
+      function hole(ctx,x,y,r,mass,dragging=false){const glow=ctx.createRadialGradient(x,y,r*.55,x,y,r*1.65);glow.addColorStop(0,"#000");glow.addColorStop(.48,"#000");glow.addColorStop(.64,"rgba(123,76,226,.4)");glow.addColorStop(1,"rgba(123,76,226,0)");ctx.fillStyle=glow;ctx.beginPath();ctx.arc(x,y,r*1.7,0,Math.PI*2);ctx.fill();ctx.save();ctx.translate(x,y);ctx.rotate(-.18);ctx.strokeStyle="rgba(255,181,68,.72)";ctx.lineWidth=Math.max(4,r*.10);ctx.shadowColor="rgba(255,181,68,.5)";ctx.shadowBlur=17;ctx.beginPath();ctx.ellipse(0,0,r*1.45,r*.48,0,0,Math.PI*2);ctx.stroke();ctx.restore();ctx.shadowBlur=0;ctx.fillStyle="#000";ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.fill();if(dragging){ctx.strokeStyle="rgba(112,219,232,.9)";ctx.lineWidth=2;ctx.setLineDash([5,6]);ctx.beginPath();ctx.arc(x,y,r*1.35,0,Math.PI*2);ctx.stroke();ctx.setLineDash([])}ctx.fillStyle="rgba(255,255,255,.7)";ctx.font="600 10px ui-monospace";ctx.textAlign="center";ctx.fillText(`M=${mass.toFixed(3)}`,x,y+r*1.95)}
+      function drawHero(now){hctx.clearRect(0,0,hw,hh);const g=hctx.createRadialGradient(hw*.42,hh*.52,0,hw*.42,hh*.52,Math.max(hw,hh));g.addColorStop(0,"#100d20");g.addColorStop(.4,"#080c14");g.addColorStop(1,"#03060a");hctx.fillStyle=g;hctx.fillRect(0,0,hw,hh);state.stars.slice(0,75).forEach(s=>{hctx.globalAlpha=s.a*(.75+.25*Math.sin(now*.001+s.x*30));hctx.fillStyle="#d5e4ff";hctx.beginPath();hctx.arc(s.x*hw,s.y*hh,s.r,0,Math.PI*2);hctx.fill()});hctx.globalAlpha=1;hole(hctx,hw*.43,hh*.48,Math.min(hw,hh)*.15,current().a);const dx=hw*.84,dy=hh*.48;hctx.strokeStyle="rgba(112,219,232,.65)";hctx.lineWidth=2;hctx.beginPath();hctx.arc(dx,dy,31,0,Math.PI*2);hctx.stroke();for(let i=0;i<8;i++){const phase=(now*.00008+i/8)%1;const x=lerp(hw*.52,dx,phase),y=lerp(hh*.48,dy,phase)+Math.sin(phase*Math.PI*3+i)*18;hctx.fillStyle=i%2?"#70dbe8":"#ffb544";hctx.shadowColor=hctx.fillStyle;hctx.shadowBlur=10;hctx.beginPath();hctx.arc(x,y,2.2,0,Math.PI*2);hctx.fill()}hctx.shadowBlur=0}
+      function packetPos(e,now){const age=(state.time-e.tau)/.17,progress=clamp(age),bx=state.bh.x*sw,by=state.bh.y*sh,dx=sw*.89,dy=sh*.49;return{x:lerp(bx,dx,progress),y:lerp(by,dy,progress)+Math.sin(progress*Math.PI)*(-32-40*Math.sin(e.index*2.1)),progress,active:age>=0&&age<=1}}
+      function drawSpace(now){sctx.clearRect(0,0,sw,sh);const bg=sctx.createRadialGradient(sw*state.bh.x,sh*state.bh.y,0,sw*state.bh.x,sh*state.bh.y,Math.max(sw,sh));bg.addColorStop(0,"#0d0c1c");bg.addColorStop(.38,"#070b13");bg.addColorStop(1,"#020509");sctx.fillStyle=bg;sctx.fillRect(0,0,sw,sh);state.stars.forEach(s=>{sctx.globalAlpha=s.a*(.7+.3*Math.sin(now*.001+s.x*37));sctx.fillStyle="#cedfff";sctx.beginPath();sctx.arc(s.x*sw,s.y*sh,s.r,0,Math.PI*2);sctx.fill()});sctx.globalAlpha=1;
+        const c=current(),bx=state.bh.x*sw,by=state.bh.y*sh,dx=sw*.89,dy=sh*.49,detR=Math.min(sw,sh)*.085;
+        sctx.save();sctx.strokeStyle="rgba(112,219,232,.25)";sctx.lineWidth=1;sctx.setLineDash([5,8]);sctx.beginPath();sctx.moveTo(bx,by);sctx.lineTo(dx,dy);sctx.stroke();sctx.restore();
+        if(state.mode!=="a"){state.flux.forEach(p=>{const phase=(p.phase+state.time*1.8)%1,x=lerp(bx+45,dx,phase),y=lerp(by,dy,phase)+p.offset*30*Math.sin(Math.PI*phase)+Math.sin(now*.0015+p.j)*3;sctx.fillStyle=`rgba(112,219,232,${.22+.62*p.energy})`;sctx.shadowColor="#70dbe8";sctx.shadowBlur=8;sctx.beginPath();sctx.arc(x,y,lerp(1,3,p.energy),0,Math.PI*2);sctx.fill()})}
+        let inTransit=0,arrived=0;if(state.mode!=="b")visibleEvents().forEach(e=>{const p=packetPos(e,now);if(p.active)inTransit++;if(state.time-e.tau>.17)arrived++;if(p.progress>=1)return;sctx.fillStyle=e.forced?"#f6dc85":"#ffb544";sctx.shadowColor="#ffb544";sctx.shadowBlur=16;sctx.beginPath();sctx.arc(p.x,p.y,3+7*Math.sqrt(e.energy),0,Math.PI*2);sctx.fill()});sctx.shadowBlur=0;
+        sctx.strokeStyle="rgba(112,219,232,.9)";sctx.lineWidth=2;sctx.beginPath();sctx.arc(dx,dy,detR,0,Math.PI*2);sctx.stroke();sctx.strokeStyle="rgba(112,219,232,.25)";sctx.beginPath();sctx.arc(dx,dy,detR*1.45,0,Math.PI*2);sctx.stroke();sctx.fillStyle="rgba(112,219,232,.8)";sctx.font="700 10px ui-monospace";sctx.textAlign="center";sctx.fillText("DETECTOR",dx,dy+4);sctx.fillStyle="rgba(169,181,196,.75)";sctx.font="9px ui-monospace";sctx.fillText("𝓕ᵞₜ",dx,dy+17);
+        const radius=clamp(48*Math.sqrt((c.a+c.b)/(2*state.m0)),22,58)*(1+state.pulse*.12);hole(sctx,bx,by,radius,(c.a+c.b)/2,state.drag);sctx.fillStyle="rgba(169,181,196,.8)";sctx.font="10px ui-monospace";sctx.textAlign="left";sctx.fillText("LATENT STATE Mₜ",bx-radius,by-radius*1.85);
+        const count=visibleEvents().length;$("detectorTitle").textContent=count?`${arrived} packet${arrived===1?"":"s"} reached the detector`:(state.time?"Continuous flux only so far":"Detector waiting at infinity");$("detectorText").textContent=inTransit?`${inTransit} marked emission${inTransit===1?" is":"s are"} crossing the observation field. Dragging changes the illustrative geometry, not the simulated mass path.`:`Paradigm A preserves event times and marks; Paradigm B reports a smoothed flux channel.`}
+      function pathD(values,xmap,ymap,step=false){if(!values.length)return"";let d=`M${xmap(values[0],0).toFixed(2)},${ymap(values[0],0).toFixed(2)}`;for(let i=1;i<values.length;i++){const x=xmap(values[i],i),y=ymap(values[i],i);if(step){const px=xmap(values[i-1],i-1);d+=` L${x.toFixed(2)},${ymap(values[i-1],i-1).toFixed(2)} L${x.toFixed(2)},${y.toFixed(2)}`}else d+=` L${x.toFixed(2)},${y.toFixed(2)}`}return d}
+      function grid(group,x0,x1,y0,y1){group.innerHTML="";[0,.25,.5,.75,1].forEach(q=>{const ns="http://www.w3.org/2000/svg",h=document.createElementNS(ns,"line"),v=document.createElementNS(ns,"line");h.setAttribute("x1",x0);h.setAttribute("x2",x1);h.setAttribute("y1",lerp(y0,y1,q));h.setAttribute("y2",lerp(y0,y1,q));v.setAttribute("x1",lerp(x0,x1,q));v.setAttribute("x2",lerp(x0,x1,q));v.setAttribute("y1",y0);v.setAttribute("y2",y1);[h,v].forEach(el=>{el.setAttribute("stroke","rgba(184,205,224,.10)");group.append(el)})})}
+      function buildCharts(){const masses=state.path.flatMap(p=>[p.a,p.b]),observedMin=Math.min(...masses),observedMax=Math.max(...masses),pad=Math.max(.035,(observedMax-observedMin)*.16),minMass=Math.max(state.floor,observedMin-pad),maxMass=observedMax+pad,massY=v=>262-clamp((v-minMass)/Math.max(.01,maxMass-minMass))*225,x=(p)=>45+p.tau*815;$("massPathA").setAttribute("d",pathD(state.path,x,p=>massY(p.a),true));$("massPathB").setAttribute("d",pathD(state.path,x,p=>massY(p.b)));grid($("massGrid"),45,860,25,262);
+        const maxEnergy=Math.max(.001,...state.path.flatMap(p=>[p.eA,p.eB])),ey=v=>225-clamp(v/maxEnergy)*195,ex=p=>45+p.tau*815;$("energyPathA").setAttribute("d",pathD(state.path,ex,p=>ey(p.eA),true));$("energyPathB").setAttribute("d",pathD(state.path,ex,p=>ey(p.eB)));grid($("energyGrid"),45,860,30,225);state.chart={massY,energyY:ey}}
+      function updateCursor(){const p=current(),x=45+state.time*815;$("massCursor").setAttribute("x1",x);$("massCursor").setAttribute("x2",x);[["massDotA",state.chart.massY(p.a)],["massDotB",state.chart.massY(p.b)]].forEach(([id,y])=>{$(id).setAttribute("cx",x);$(id).setAttribute("cy",y)});$("energyCursor").setAttribute("x1",x);$("energyCursor").setAttribute("x2",x)}
+      function updateLedger(){const all=visibleEvents(),rows=all.slice(-10),reachedCount=all.filter(e=>state.time-e.tau>.17).length,key=`${all.length}:${reachedCount}:${state.seed}:${state.forced.length}`;$("ledgerCount").textContent=`${all.length} event${all.length===1?"":"s"}`;if(key===state.ledgerKey)return;state.ledgerKey=key;const body=$("eventRows");body.innerHTML="";if(!rows.length){body.innerHTML='<tr><td colspan="5">No accepted packet emissions at this time.</td></tr>'}else rows.forEach(e=>{const tr=document.createElement("tr"),reached=state.time-e.tau>.17;tr.innerHTML=`<td>${e.index}${e.forced?"*":""}</td><td>${e.time.toFixed(3)}</td><td>${e.energy.toExponential(3)}</td><td>${e.mass.toFixed(5)}</td><td>${reached?"received":"in flight"}</td>`;body.append(tr)})}
+      function updateAll(){if(!state.path.length)return;const p=current(),events=visibleEvents(),mean=(p.a+p.b)/2,res=p.ib-p.ia,temp=1/(8*Math.PI*Math.max(mean,state.floor));$("timeSlider").value=Math.round(state.time*1000);$("timeOutput").textContent=state.time.toFixed(3);$("eventMetric").textContent=events.length;$("massAMetric").textContent=p.a.toFixed(4);$("massBMetric").textContent=p.b.toFixed(4);$("residualMetric").textContent=(res>=0?"+":"")+res.toFixed(4);$("lambdaMetric").textContent=(state.gamma/Math.max(p.a,state.floor)).toFixed(3);$("tempMetric").textContent=temp.toExponential(2).replace("e-","e−");$("infoResidual").textContent=(res>=0?"+":"")+res.toFixed(4);$("infoValueA").textContent=p.ia.toFixed(4);$("infoValueB").textContent=p.ib.toFixed(4);const imax=Math.max(.001,p.ia,p.ib);$("infoFillA").style.width=`${p.ia/imax*100}%`;$("infoFillB").style.width=`${p.ib/imax*100}%`;$("playButton").textContent=state.playing?"Ⅱ":"▶";$("playButton").setAttribute("aria-label",state.playing?"Pause evaporation":"Play evaporation");$("heroPlay").textContent=state.playing?"Ⅱ Pause evaporation":"▶ Start evaporation";$("pauseButton").textContent=state.playing?"Pause":"Resume";$("runState").textContent=state.playing?"Simulation running":"Simulation paused";
+        if(state.time<.01){$("findingTitle").textContent="No contrast yet";$("findingText").textContent="Advance the timeline to accumulate detector information under both observation rules."}else if(res<0){$("findingTitle").textContent="Discrete telemetry currently retains more structure";$("findingText").textContent="The seeded diagnostic has I_A > I_B, consistent with—but not proof of—the information-masking hypothesis."}else{$("findingTitle").textContent="Continuous telemetry currently scores higher";$("findingText").textContent="This realization does not support the directional hypothesis. Replicate-level inference is required."}
+        document.querySelectorAll(".preset").forEach(b=>b.setAttribute("aria-pressed",Math.abs(Number(b.dataset.time)-state.time)<.025?"true":"false"));updateCursor();updateLedger();updateOutputs()}
+      function updateOutputs(){$("m0Output").textContent=state.m0.toFixed(2);$("gammaOutput").textContent=state.gamma.toFixed(2);$("alphaOutput").textContent=state.alpha.toFixed(3);$("sigmaOutput").textContent=state.sigma.toFixed(3);$("efficiencyOutput").textContent=state.eta.toFixed(2);$("floorOutput").textContent=state.floor.toFixed(2)}
+      function toast(msg){const t=$("toast");t.textContent=msg;t.classList.add("show");clearTimeout(toast.timer);toast.timer=setTimeout(()=>t.classList.remove("show"),1700)}
+      function setTime(t,pause=true){state.time=clamp(t);if(pause)state.playing=false;updateAll()}
+      function toggle(){if(state.time>=.999&&!state.playing)state.time=0;state.playing=!state.playing;updateAll()}
+      function eventPoint(ev){const r=space.getBoundingClientRect();return{x:clamp((ev.clientX-r.left)/r.width,.06,.76),y:clamp((ev.clientY-r.top)/r.height,.1,.9)}}
+      space.addEventListener("pointerdown",e=>{const pt=eventPoint(e),dist=Math.hypot(pt.x-state.bh.x,pt.y-state.bh.y);if(dist<.15){state.drag=true;space.classList.add("dragging");space.setPointerCapture(e.pointerId);state.bh=pt}});space.addEventListener("pointermove",e=>{if(state.drag)state.bh=eventPoint(e)});space.addEventListener("pointerup",e=>{state.drag=false;space.classList.remove("dragging");if(space.hasPointerCapture(e.pointerId))space.releasePointerCapture(e.pointerId)});space.addEventListener("pointercancel",()=>{state.drag=false;space.classList.remove("dragging")});space.addEventListener("keydown",e=>{const d=e.shiftKey?.05:.018;if(e.key==="ArrowLeft")state.bh.x-=d;else if(e.key==="ArrowRight")state.bh.x+=d;else if(e.key==="ArrowUp")state.bh.y-=d;else if(e.key==="ArrowDown")state.bh.y+=d;else if(e.key===" "){toggle();e.preventDefault();return}else return;state.bh.x=clamp(state.bh.x,.06,.76);state.bh.y=clamp(state.bh.y,.1,.9);e.preventDefault()});
+      $("playButton").addEventListener("click",toggle);$("pauseButton").addEventListener("click",toggle);$("heroPlay").addEventListener("click",()=>{toggle();$("laboratory").scrollIntoView({behavior:reduced?"auto":"smooth"})});$("resetButton").addEventListener("click",()=>{state.time=0;state.playing=false;state.forced=[];state.bh={x:.28,y:.53};simulate();toast("Laboratory reset")});$("timeSlider").addEventListener("input",e=>setTime(Number(e.target.value)/1000));document.querySelectorAll(".preset").forEach(b=>b.addEventListener("click",()=>setTime(Number(b.dataset.time))));document.querySelectorAll(".mode-btn").forEach(b=>b.addEventListener("click",()=>{state.mode=b.dataset.mode;document.querySelectorAll(".mode-btn").forEach(x=>x.classList.toggle("active",x===b));toast(b.textContent+" view selected")}));
+      $("centerButton").addEventListener("click",()=>{state.bh={x:.28,y:.53};toast("Horizon centered")});$("emitButton").addEventListener("click",()=>{const t=clamp(Math.max(.002,state.time));state.forced.push(t);state.time=Math.max(state.time,.003);state.pulse=1;simulate();setTimeout(()=>state.pulse=0,420);toast("One marked packet injected at current time")});$("newSeedButton").addEventListener("click",()=>{state.seed=Math.floor(Math.random()*90000000)+10000000;$("seedControl").value=state.seed;state.forced=[];initParticles();simulate();toast("New reproducible seed generated")});$("runButton").addEventListener("click",()=>{state.seed=Math.max(1,Number($("seedControl").value)||1);state.time=0;state.playing=true;state.forced=[];initParticles();simulate();toast("New parallel experiment started")});
+      [["m0Control","m0",1],["gammaControl","gamma",1],["alphaControl","alpha",1],["sigmaControl","sigma",1],["efficiencyControl","eta",.01],["floorControl","floor",.01]].forEach(([id,key,scale])=>$(id).addEventListener("input",e=>{state[key]=Number(e.target.value)*scale;if(key==="floor")state.floor=Math.min(state.floor,state.m0-.1);state.time=0;state.forced=[];simulate()}));$("seedControl").addEventListener("change",e=>{state.seed=Math.max(1,Number(e.target.value)||1);initParticles();simulate()});
+      let scrub=false;function svgTime(ev,svg){const r=svg.getBoundingClientRect();return clamp(((ev.clientX-r.left)/r.width*900-45)/815)}const massSvg=$("massSvg");massSvg.addEventListener("pointerdown",e=>{scrub=true;massSvg.setPointerCapture(e.pointerId);setTime(svgTime(e,massSvg))});massSvg.addEventListener("pointermove",e=>{if(scrub)setTime(svgTime(e,massSvg))});massSvg.addEventListener("pointerup",e=>{scrub=false;if(massSvg.hasPointerCapture(e.pointerId))massSvg.releasePointerCapture(e.pointerId)});
+      function frame(now){const dt=Math.min(.05,(now-state.last)/1000);state.last=now;if(state.playing){state.time+=dt*state.speed;if(state.time>=1){state.time=1;state.playing=false;toast("Stopped endpoint reached")}}drawHero(now);drawSpace(now);if(now-state.uiLast>50){state.uiLast=now;updateAll()}requestAnimationFrame(frame)}
+      window.addEventListener("resize",resize);initParticles();resize();simulate();requestAnimationFrame(frame);
+    })();
+  </script>
 </body>
 </html>
