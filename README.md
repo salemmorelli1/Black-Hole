@@ -56,6 +56,9 @@ failed stage.
 - An information contrast is labeled transfer entropy only when the reduced
   predictor is conditioned causally on detector history. The default ensemble
   baseline is explicitly labeled as an open-loop diagnostic.
+- Continuous-time information rates are integrated over exactly `n_steps`
+  half-open intervals using their left-endpoint states; the terminal state at
+  `t=T` is not counted as an extra interval.
 
 ## Repository layout
 
@@ -76,10 +79,14 @@ black-hole-information-dynamics/
 │   └── part4_validate_repository.py
 ├── src/black_hole_information/
 │   ├── __init__.py
+│   ├── artifacts.py
 │   ├── cli.py
 │   ├── engine.py
 │   └── py.typed
-├── tests/test_engine.py
+├── tests/
+│   ├── test_engine.py
+│   └── test_regressions.py
+├── requirements-ci-lock.txt
 ├── run_research_pipeline.py
 └── pyproject.toml
 ```
@@ -96,6 +103,17 @@ python -m pip install -e ".[dev]"
 ```
 
 On Windows PowerShell, activate with `.venv\Scripts\Activate.ps1`.
+On Windows Git Bash, activate with `source .venv/Scripts/activate`.
+
+To reproduce the audited GitHub Actions environment exactly:
+
+```bash
+python -m pip install --disable-pip-version-check \
+  --index-url https://download.pytorch.org/whl/cpu torch==2.13.0+cpu
+python -m pip install --disable-pip-version-check -r requirements-ci-lock.txt
+python -m pip install --disable-pip-version-check --no-deps -e .
+python -m pip check
+```
 
 ## Quick start
 
@@ -127,13 +145,17 @@ Generated artifacts are intentionally excluded from version control.
 ## Tests
 
 ```bash
-python -m unittest discover -s tests -v
-ruff check .
+python -m pytest
+python -m ruff check .
+python -m mypy src scripts run_research_pipeline.py
+python -m compileall src tests scripts run_research_pipeline.py
+python scripts/part4_validate_repository.py
 ```
 
 The numerical suite verifies Planck moments, both path likelihoods, inactive
-parameter directions, Fisher positive semidefiniteness, matrix dimensions, and
-finite autograd results.
+parameter directions, Fisher positive semidefiniteness, matrix dimensions, finite
+autograd results, strict artifact serialization, physical parameter validation,
+and the interval-grid information contract.
 
 ## Current research boundary
 

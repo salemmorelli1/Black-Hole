@@ -2,6 +2,19 @@
 
 All notable changes are documented here.
 
+## Unreleased
+
+### Fixed
+
+- Integrate information rates over the `n_steps` physical intervals instead of
+  counting the terminal grid state as an extra interval.
+- Reject non-finite configurations, nonphysical parameters, invalid Planck-mark
+  support, negative intensities, and zero observation noise before calculation.
+- Reject non-standard JSON `NaN`/`Infinity` values without replacing an existing
+  artifact.
+- Pin direct CI dependencies and GitHub Actions revisions, and expand the gate to
+  include type checking, compilation, and the repository validation entry point.
+
 ## 0.1.0 - 2026-08-20
 
 ### Added

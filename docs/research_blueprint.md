@@ -697,7 +697,7 @@ Minimal execution:
 ```python
 import torch
 
-from black_hole_information_engine import (
+from black_hole_information import (
     CentralizedInformationEngine,
     PhysicsConfig,
     mean_drift_matching,
@@ -731,7 +731,9 @@ print(result["a_predictor_status"], result["b_predictor_status"])
 
 For a thesis result labeled transfer entropy, pass filter-based tensors
 ``reduced_rate_a`` and ``reduced_signal_b`` to ``evaluate``.  The default ensemble
-baselines are intentionally labeled as open-loop contrasts.
+baselines are intentionally labeled as open-loop contrasts. Each filter tensor has
+shape ``(replicates, n_steps)`` and supplies a predictable value for the half-open
+interval ``[t_k, t_{k+1})``; the terminal state at ``t=T`` is not integrated twice.
 
 ### 8.1 HMC/NUTS interface
 
