@@ -26,6 +26,8 @@ def main() -> int:
         "--output", default=str(ROOT / "artifacts" / "part1" / "paradigm_a_summary.json")
     )
     args = parser.parse_args()
+    if args.replicates < 1:
+        parser.error("--replicates must be at least 1")
     torch.set_default_dtype(torch.float64)
 
     config_path = Path(args.config)

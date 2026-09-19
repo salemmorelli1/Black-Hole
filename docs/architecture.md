@@ -83,6 +83,11 @@ Required quantities:
 - entropy-rate summaries;
 - predictor-status labels specifying whether transfer-entropy conditions hold.
 
+Information rates use the `n_steps` left-endpoint states for the half-open
+intervals `[t_k, t_{k+1})`. The terminal state at `t=T` is retained in simulated
+paths but is not integrated as an additional interval. User-supplied predictable
+filters therefore have shape `(replicates, n_steps)`.
+
 ## Part 4 contract
 
 Output:

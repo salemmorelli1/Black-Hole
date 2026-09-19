@@ -3,7 +3,7 @@
 Research status
 ---------------
 This module is a reference implementation for the two *stopped effective models*
-described in ``black_hole_information_blueprint.md``.  It is not a claim that either
+described in ``docs/research_blueprint.md``.  It is not a claim that either
 model remains valid at Planck mass.  Every path is stopped at ``m_floor > 0``.
 
 The module deliberately separates two derivatives that are often conflated:
@@ -24,7 +24,7 @@ Requires PyTorch >= 2.2.  All calculations default to float64.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from math import pi
+from math import isfinite, pi
 
 import torch
 import torch.nn.functional as F
@@ -37,6 +37,35 @@ def _scalar(value: float, like: Tensor) -> Tensor:
     """Create a scalar on the same device and with the same dtype as ``like``."""
 
     return torch.as_tensor(value, dtype=like.dtype, device=like.device)
+
+
+def _require_finite_number(name: str, value: float) -> None:
+    """Reject non-real and non-finite scalar configuration values."""
+
+    if isinstance(value, bool):
+        raise ValueError(f"{name} must be a finite real number")
+    try:
+        finite = isfinite(value)
+    except (TypeError, ValueError) as exc:
+        raise ValueError(f"{name} must be a finite real number") from exc
+    if not finite:
+        raise ValueError(f"{name} must be finite")
+
+
+def _validate_physical_theta(theta: Tensor, m_floor: float) -> None:
+    """Validate ``theta=(M0, gamma, alpha)`` on its physical scale."""
+
+    if theta.shape != (3,):
+        raise ValueError("theta must have shape (3,) ordered as M0, gamma, alpha")
+    if not theta.is_floating_point():
+        raise ValueError("theta must be a real floating-point tensor")
+    if not bool(torch.isfinite(theta).all().detach().item()):
+        raise ValueError("theta must contain only finite values")
+    m0, gamma, alpha = theta.detach().unbind()
+    if float(m0) <= m_floor:
+        raise ValueError("M0 must exceed m_floor")
+    if float(gamma) <= 0.0 or float(alpha) <= 0.0:
+        raise ValueError("gamma and alpha must be strictly positive")
 
 
 def _normal_log_prob(value: Tensor, mean: Tensor, sd: Tensor) -> Tensor:
@@ -58,6 +87,11 @@ def positive_parameters(raw_theta: Tensor, m_floor: float) -> tuple[Tensor, Tens
 
     if raw_theta.shape != (3,):
         raise ValueError("raw_theta must have shape (3,) ordered as M0, gamma, alpha")
+    if not raw_theta.is_floating_point() or not bool(torch.isfinite(raw_theta).all().item()):
+        raise ValueError("raw_theta must contain only finite floating-point values")
+    _require_finite_number("m_floor", m_floor)
+    if m_floor <= 0.0:
+        raise ValueError("m_floor must be strictly positive")
     floor = _scalar(m_floor, raw_theta)
     physical = torch.stack(
         (
@@ -88,16 +122,43 @@ class PhysicsConfig:
     eps: float = 1.0e-12
 
     def validate(self) -> None:
+        for name, value in (
+            ("horizon", self.horizon),
+            ("dt", self.dt),
+            ("m_floor", self.m_floor),
+            ("hawking_kappa", self.hawking_kappa),
+            ("sigma_base", self.sigma_base),
+            ("initial_observation_sd", self.initial_observation_sd),
+            ("detector_efficiency", self.detector_efficiency),
+            ("observation_gain", self.observation_gain),
+            ("observation_sd", self.observation_sd),
+            ("eps", self.eps),
+        ):
+            _require_finite_number(name, value)
         if self.horizon <= 0.0 or self.dt <= 0.0:
             raise ValueError("horizon and dt must be positive")
+        if int(round(self.horizon / self.dt)) < 1:
+            raise ValueError("horizon/dt must define at least one Euler step")
         if self.m_floor <= 0.0:
             raise ValueError("m_floor must be strictly positive")
+        if self.hawking_kappa <= 0.0:
+            raise ValueError("hawking_kappa must be strictly positive")
         if self.sigma_base <= 0.0 or self.observation_sd <= 0.0:
             raise ValueError("diffusion and observation scales must be positive")
         if self.initial_observation_sd <= 0.0:
             raise ValueError("initial_observation_sd must be positive")
         if not 0.0 < self.detector_efficiency <= 1.0:
             raise ValueError("detector_efficiency must be in (0, 1]")
+        if self.observation_gain < 0.0:
+            raise ValueError("observation_gain must be nonnegative")
+        if not 0.0 < self.eps < 1.0:
+            raise ValueError("eps must be in (0, 1)")
+        if isinstance(self.max_events, bool) or not isinstance(self.max_events, int):
+            raise ValueError("max_events must be an integer")
+        if isinstance(self.planck_mixture_terms, bool) or not isinstance(
+            self.planck_mixture_terms, int
+        ):
+            raise ValueError("planck_mixture_terms must be an integer")
         if self.max_events < 1 or self.planck_mixture_terms < 2:
             raise ValueError("max_events and planck_mixture_terms are too small")
 
@@ -163,6 +224,11 @@ class PlanckNumberMarks:
     """
 
     def __init__(self, k_max: int = 256, eps: float = 1.0e-12):
+        if isinstance(k_max, bool) or not isinstance(k_max, int) or k_max < 2:
+            raise ValueError("k_max must be an integer of at least 2")
+        _require_finite_number("eps", eps)
+        if not 0.0 < eps < 1.0:
+            raise ValueError("eps must be in (0, 1)")
         self.k_max = int(k_max)
         self.eps = float(eps)
 
@@ -181,24 +247,32 @@ class PlanckNumberMarks:
         return -torch.log(u).sum() / rate
 
     def log_prob_dimensionless(self, x: Tensor) -> Tensor:
+        if not bool(torch.isfinite(x).all().detach().item()) or bool(
+            (x <= 0.0).any().detach().item()
+        ):
+            raise ValueError("x must contain only finite, strictly positive values")
         k, log_weights = self._components(x)
-        safe_x = x.clamp_min(self.eps)
+        expanded_x = x.unsqueeze(-1)
         # Gamma(shape=3, rate=k): k^3 x^2 exp(-kx) / Gamma(3), Gamma(3)=2.
         component_log_pdf = (
             3.0 * torch.log(k)
-            + 2.0 * torch.log(safe_x)
-            - k * safe_x
+            + 2.0 * torch.log(expanded_x)
+            - k * expanded_x
             - torch.log(_scalar(2.0, x))
         )
-        return torch.logsumexp(log_weights + component_log_pdf, dim=0)
+        return torch.logsumexp(log_weights + component_log_pdf, dim=-1)
 
     def log_survival_dimensionless(self, x: Tensor) -> Tensor:
         """Log P(X >= x); used for the terminal boundary atom."""
 
+        if not bool(torch.isfinite(x).all().detach().item()) or bool(
+            (x < 0.0).any().detach().item()
+        ):
+            raise ValueError("x must contain only finite, nonnegative values")
         k, log_weights = self._components(x)
-        z = k * x.clamp_min(0.0)
+        z = k * x.unsqueeze(-1)
         log_survival_component = -z + torch.log1p(z + 0.5 * z.square())
-        return torch.logsumexp(log_weights + log_survival_component, dim=0)
+        return torch.logsumexp(log_weights + log_survival_component, dim=-1)
 
     def moment(self, order: int, like: Tensor) -> Tensor:
         """Return E[X**order] for a nonnegative integer order."""
@@ -235,9 +309,8 @@ class PacketJumpDiffusion:
         through waiting times and jump sizes conditional on the realized topology.
         """
 
+        _validate_physical_theta(theta, self.config.m_floor)
         m0, gamma, _alpha_unused = theta.unbind()
-        if float(m0.detach()) <= self.config.m_floor:
-            raise ValueError("M0 must exceed m_floor")
 
         t = torch.zeros((), dtype=theta.dtype, device=theta.device)
         mass = m0
@@ -295,6 +368,7 @@ class PacketJumpDiffusion:
         continuous observation.
         """
 
+        _validate_physical_theta(theta, self.config.m_floor)
         m0, gamma, _alpha_unused = theta.unbind()
         sd0 = _scalar(self.config.initial_observation_sd, theta)
         ll = _normal_log_prob(y0, m0, sd0)
@@ -346,7 +420,7 @@ class PacketJumpDiffusion:
     def entropy_drift(self, mass: Tensor, gamma: Tensor) -> Tensor:
         r"""Interior generator applied to S_BH(M)=4*pi*M^2.
 
-        This expression uses the untruncated Planck moments and is therefore an
+        This expression uses the configured finite-mixture Planck moments and is an
         interior approximation.  The exact stopped generator replaces the moments
         by an integral with the terminal boundary atom.
         """
@@ -380,6 +454,7 @@ class ContinuousMassDiffusion:
         return coefficient / mass.pow(1.5)
 
     def simulate(self, theta: Tensor, generator: torch.Generator) -> DiffusionPath:
+        _validate_physical_theta(theta, self.config.m_floor)
         m0, gamma, alpha = theta.unbind()
         n_steps = int(round(self.config.horizon / self.config.dt))
         if n_steps < 1:
@@ -441,6 +516,7 @@ class ContinuousMassDiffusion:
         Gaussian hitting probabilities under the target and reference drifts.
         """
 
+        _validate_physical_theta(theta, self.config.m_floor)
         m0, gamma, alpha = theta.unbind()
         sd0 = _scalar(self.config.initial_observation_sd, theta)
         ll = _normal_log_prob(y0, m0, sd0)
@@ -477,6 +553,13 @@ class ContinuousMassDiffusion:
 def detector_signal(mass: Tensor, gain: float) -> Tensor:
     """Continuous detector signal h(M)=gain/M^2."""
 
+    _require_finite_number("gain", gain)
+    if gain < 0.0:
+        raise ValueError("gain must be nonnegative")
+    if not bool(torch.isfinite(mass).all().detach().item()) or bool(
+        (mass <= 0.0).any().detach().item()
+    ):
+        raise ValueError("mass must contain only finite, strictly positive values")
     return _scalar(gain, mass) / mass.square()
 
 
@@ -497,6 +580,22 @@ def point_process_information(
     information contrast but must not be labeled transfer entropy.
     """
 
+    _require_finite_number("dt", dt)
+    _require_finite_number("eps", eps)
+    if dt <= 0.0:
+        raise ValueError("dt must be strictly positive")
+    if not 0.0 < eps < 1.0:
+        raise ValueError("eps must be in (0, 1)")
+    if full_rate.shape != reduced_rate.shape:
+        raise ValueError("full_rate and reduced_rate must have the same shape")
+    if not bool(torch.isfinite(full_rate).all().detach().item()) or not bool(
+        torch.isfinite(reduced_rate).all().detach().item()
+    ):
+        raise ValueError("rates must contain only finite values")
+    if bool((full_rate < 0.0).any().detach().item()) or bool(
+        (reduced_rate < 0.0).any().detach().item()
+    ):
+        raise ValueError("rates must be nonnegative")
     full = full_rate.clamp_min(eps)
     reduced = reduced_rate.clamp_min(eps)
     return _scalar(dt, full) * (full * torch.log(full / reduced) - full + reduced).sum(dim=-1)
@@ -515,6 +614,16 @@ def diffusion_information(
     F^Y_t-predictable filtered signal.
     """
 
+    _require_finite_number("observation_sd", observation_sd)
+    _require_finite_number("dt", dt)
+    if observation_sd <= 0.0 or dt <= 0.0:
+        raise ValueError("observation_sd and dt must be strictly positive")
+    if full_signal.shape != reduced_signal.shape:
+        raise ValueError("full_signal and reduced_signal must have the same shape")
+    if not bool(torch.isfinite(full_signal).all().detach().item()) or not bool(
+        torch.isfinite(reduced_signal).all().detach().item()
+    ):
+        raise ValueError("signals must contain only finite values")
     rho2 = _scalar(observation_sd**2, full_signal)
     return 0.5 * _scalar(dt, full_signal) * (
         (full_signal - reduced_signal).square() / rho2
@@ -539,6 +648,10 @@ def empirical_fisher(scores: Tensor) -> Tensor:
 
     if scores.ndim != 2 or scores.shape[1] != 3:
         raise ValueError("scores must have shape (replicates, 3)")
+    if scores.shape[0] < 1:
+        raise ValueError("scores must contain at least one replicate")
+    if not bool(torch.isfinite(scores).all().detach().item()):
+        raise ValueError("scores must contain only finite values")
     # Fisher information is E[s_theta s_theta^T], not the finite-sample covariance
     # of the score.  The population mean score is zero under regularity conditions,
     # but centering a small Monte Carlo sample can erase genuine information (for
@@ -563,6 +676,24 @@ def common_parameter_pullback(
     the two Jacobians before differencing.
     """
 
+    if fisher_a.shape != (3, 3) or fisher_b.shape != (3, 3):
+        raise ValueError("fisher_a and fisher_b must both have shape (3, 3)")
+    if fisher_a.device != fisher_b.device or fisher_a.dtype != fisher_b.dtype:
+        raise ValueError("fisher_a and fisher_b must share dtype and device")
+    if not bool(torch.isfinite(fisher_a).all().detach().item()) or not bool(
+        torch.isfinite(fisher_b).all().detach().item()
+    ):
+        raise ValueError("Fisher matrices must contain only finite values")
+    _require_finite_number("hawking_kappa", hawking_kappa)
+    if hawking_kappa <= 0.0:
+        raise ValueError("hawking_kappa must be strictly positive")
+    if planck_mean_x.numel() != 1 or not bool(
+        torch.isfinite(planck_mean_x).all().detach().item()
+    ):
+        raise ValueError("planck_mean_x must be a finite scalar")
+    if float(planck_mean_x.detach()) <= 0.0:
+        raise ValueError("planck_mean_x must be strictly positive")
+
     dtype, device = fisher_a.dtype, fisher_a.device
     zero = torch.zeros((), dtype=dtype, device=device)
     one = torch.ones((), dtype=dtype, device=device)
@@ -581,8 +712,12 @@ def common_parameter_pullback(
 def _leave_one_out_mean(values: Tensor) -> Tensor:
     """Open-loop ensemble baseline used only when no causal filter is supplied."""
 
+    if values.ndim < 1:
+        raise ValueError("values must include a replicate dimension")
     if values.shape[0] < 2:
         raise ValueError("at least two replicates are required for a leave-one-out baseline")
+    if not bool(torch.isfinite(values).all().detach().item()):
+        raise ValueError("values must contain only finite values")
     return (values.sum(dim=0, keepdim=True) - values) / (values.shape[0] - 1)
 
 
@@ -610,13 +745,23 @@ class CentralizedInformationEngine:
         reduced_rate_a: Tensor | None = None,
         reduced_signal_b: Tensor | None = None,
     ) -> dict[str, Tensor | str]:
-        if theta.shape != (3,) or not theta.requires_grad:
-            raise ValueError("theta must be a length-3 leaf tensor with requires_grad=True")
+        if not theta.requires_grad:
+            raise ValueError("theta must have requires_grad=True")
+        _validate_physical_theta(theta, self.config.m_floor)
+        if isinstance(replicates, bool) or not isinstance(replicates, int):
+            raise ValueError("replicates must be an integer")
         if replicates < 2:
             raise ValueError("replicates must be at least 2")
+        if isinstance(seed, bool) or not isinstance(seed, int):
+            raise ValueError("seed must be an integer")
 
         n_steps = int(round(self.config.horizon / self.config.dt))
         dt = self.config.horizon / n_steps
+        expected_filter_shape = (replicates, n_steps)
+        if reduced_rate_a is not None and reduced_rate_a.shape != expected_filter_shape:
+            raise ValueError(f"reduced_rate_a must have shape {expected_filter_shape}")
+        if reduced_signal_b is not None and reduced_signal_b.shape != expected_filter_shape:
+            raise ValueError(f"reduced_signal_b must have shape {expected_filter_shape}")
         grid = torch.linspace(
             0.0,
             self.config.horizon,
@@ -660,27 +805,28 @@ class CentralizedInformationEngine:
         fisher_a = empirical_fisher(score_a)
         fisher_b = empirical_fisher(score_b)
 
+        # Information rates live on the n_steps half-open intervals [t_k, t_{k+1}).
+        # The simulated paths also contain the terminal grid state at t=T, which is
+        # not an additional interval and must not receive another factor of dt.
+        mass_a_intervals = mass_a[..., :-1]
+        mass_b_intervals = mass_b[..., :-1]
         full_rate_a = (
             _scalar(self.config.detector_efficiency, theta)
             * theta[1]
-            / mass_a.clamp_min(self.config.m_floor)
+            / mass_a_intervals.clamp_min(self.config.m_floor)
         )
-        full_signal_b = detector_signal(mass_b, self.config.observation_gain)
+        full_signal_b = detector_signal(mass_b_intervals, self.config.observation_gain)
 
         if reduced_rate_a is None:
             reduced_rate_a = _leave_one_out_mean(full_rate_a)
             rate_label = "open_loop_leave_one_out; not transfer entropy"
         else:
-            if reduced_rate_a.shape != full_rate_a.shape:
-                raise ValueError("reduced_rate_a has the wrong shape")
             rate_label = "user_supplied_predictable_filter"
 
         if reduced_signal_b is None:
             reduced_signal_b = _leave_one_out_mean(full_signal_b)
             signal_label = "open_loop_leave_one_out; not transfer entropy"
         else:
-            if reduced_signal_b.shape != full_signal_b.shape:
-                raise ValueError("reduced_signal_b has the wrong shape")
             signal_label = "user_supplied_predictable_filter"
 
         info_a_by_path = point_process_information(
@@ -707,8 +853,10 @@ class CentralizedInformationEngine:
             fisher_a, fisher_b, self.config.hawking_kappa, c1
         )
 
-        entropy_rate_a = self.jump.entropy_drift(mass_a, theta[1]).mean()
-        entropy_rate_b = self.diffusion.entropy_drift(mass_b, theta[1], theta[2]).mean()
+        entropy_rate_a = self.jump.entropy_drift(mass_a_intervals, theta[1]).mean()
+        entropy_rate_b = self.diffusion.entropy_drift(
+            mass_b_intervals, theta[1], theta[2]
+        ).mean()
 
         return {
             "fisher_a_native": fisher_a,
@@ -743,6 +891,7 @@ def mean_drift_matching(config: PhysicsConfig, like: Tensor) -> dict[str, Tensor
     quadratic variation globally.  The matching diffusion scales as M^{-3/2}.
     """
 
+    config.validate()
     marks = PlanckNumberMarks(config.planck_mixture_terms, config.eps)
     c1 = marks.moment(1, like)
     c2 = marks.moment(2, like)

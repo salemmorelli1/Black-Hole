@@ -63,7 +63,7 @@ def write_json_atomic(path: Path, payload: dict[str, Any]) -> None:
     temporary_path = Path(temporary_name)
     try:
         with os.fdopen(handle, "w", encoding="utf-8") as stream:
-            json.dump(serializable, stream, indent=2, sort_keys=True)
+            json.dump(serializable, stream, allow_nan=False, indent=2, sort_keys=True)
             stream.write("\n")
             stream.flush()
             os.fsync(stream.fileno())

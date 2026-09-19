@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import json
 from collections.abc import Sequence
+from math import isfinite
 from pathlib import Path
 from typing import Any
 
@@ -20,22 +21,40 @@ def load_experiment_config(path: Path) -> tuple[PhysicsConfig, dict[str, float],
 
     with path.open("r", encoding="utf-8") as stream:
         raw = json.load(stream)
-    theta_raw = raw.pop("theta")
-    config = PhysicsConfig(**raw)
+    if not isinstance(raw, dict):
+        raise ValueError("configuration root must be a JSON object")
+    theta_raw = raw.get("theta")
+    if not isinstance(theta_raw, dict):
+        raise ValueError("configuration must contain a theta object")
+    expected_theta = {"M0", "gamma", "alpha"}
+    if set(theta_raw) != expected_theta:
+        raise ValueError("theta must contain exactly M0, gamma, and alpha")
+
+    config_raw = {key: value for key, value in raw.items() if key != "theta"}
+    config = PhysicsConfig(**config_raw)
     config.validate()
-    theta_values = {
-        "M0": float(theta_raw["M0"]),
-        "gamma": float(theta_raw["gamma"]),
-        "alpha": float(theta_raw["alpha"]),
-    }
+    try:
+        theta_values = {
+            "M0": float(theta_raw["M0"]),
+            "gamma": float(theta_raw["gamma"]),
+            "alpha": float(theta_raw["alpha"]),
+        }
+    except (TypeError, ValueError) as exc:
+        raise ValueError("theta values must be real numbers") from exc
+    if not all(isfinite(value) for value in theta_values.values()):
+        raise ValueError("theta values must be finite")
     if theta_values["M0"] <= config.m_floor:
         raise ValueError("theta.M0 must exceed m_floor")
     if theta_values["gamma"] <= 0.0 or theta_values["alpha"] <= 0.0:
         raise ValueError("theta.gamma and theta.alpha must be positive")
-    return config, theta_values, {**raw, "theta": theta_raw}
+    return config, theta_values, raw
 
 
 def make_theta(values: dict[str, float], requires_grad: bool) -> torch.Tensor:
+    if set(values) != {"M0", "gamma", "alpha"}:
+        raise ValueError("values must contain exactly M0, gamma, and alpha")
+    if not all(isfinite(value) for value in values.values()):
+        raise ValueError("theta values must be finite")
     return torch.tensor(
         [values["M0"], values["gamma"], values["alpha"]],
         dtype=torch.float64,
