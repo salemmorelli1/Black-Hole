@@ -7,6 +7,12 @@ The project supports a Statistics PhD thesis investigating whether a smooth,
 continuous representation masks information-theoretic signatures retained by
 discrete stochastic emission events.
 
+Version 0.2.0 corrects stopping semantics, the B_star drift, censored Gaussian
+tails, normalized diffusion scores, and zero-intensity information support.
+It also freezes pipeline inputs and checks fresh run evidence. See the
+[October 12 audit](docs/STOPPED_EXPERIMENT_AUDIT_2026-10-12.md) for the findings,
+reproduction oracles, and statistical interpretation limits.
+
 ## Research question
 
 The primary estimand is the integrated information residual
@@ -48,6 +54,10 @@ failed stage.
   semiclassical model is valid at \(M=0\).
 - Fisher scores differentiate fixed realized paths. They are not confused with
   pathwise derivatives through the simulator.
+- Diffusion scores use the normalized finite-grid increment likelihood with
+  censored boundary flags. The Girsanov ratio remains a diagnostic. Moving
+  cutoff support can make M0 nonregular; score outer products alone do not
+  establish a regular Fisher metric or Cramer-Rao bound.
 - The native three-parameter Fisher matrices are structurally singular. The
   engine pulls both models back to the common parameter
   \((M_0,\alpha_{\rm eff})\) before comparison.
@@ -138,9 +148,23 @@ artifacts/part1/paradigm_a_summary.json
 artifacts/part2/paradigm_b_summary.json
 artifacts/part3/information_summary.json
 artifacts/part4/validation_summary.json
+artifacts/pipeline_manifest.json
 ```
 
 Generated artifacts are intentionally excluded from version control.
+The runner keeps an exact configuration snapshot under `artifacts/input-configs/`
+and binds every stage to the same run ID, input digest, and implementation.
+`--skip-tests` produces `SIMULATION_ONLY` evidence rather than a validated PASS.
+
+Verify the delivered source bytes before running:
+
+```bash
+python verify_source.py
+```
+
+The website is a qualitative illustration. Its scores are not measured
+information residuals. The linked August 2026 PDF contains historical
+calculations; regenerate current results with version 0.2.0.
 
 ## Tests
 
@@ -156,6 +180,16 @@ The numerical suite verifies Planck moments, both path likelihoods, inactive
 parameter directions, Fisher positive semidefiniteness, matrix dimensions, finite
 autograd results, strict artifact serialization, physical parameter validation,
 and the interval-grid information contract.
+New regressions check stopped generators, capped-moment quadrature, normalized
+likelihood scores, stable censored tails, matching controls, predictor support,
+configuration custody, and nonempty validation. GitHub also runs Windows tests
+and an isolated Microsoft Edge site check. For that optional local check:
+
+```bash
+python -m pip install -r requirements-browser-lock.txt
+BHID_BROWSER_TESTS=1 BHID_TEST_BROWSER=msedge \
+  python -m unittest discover -s tests -p test_site.py -v
+```
 
 ## Current research boundary
 

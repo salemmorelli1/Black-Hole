@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 from collections.abc import Sequence
+from dataclasses import dataclass
 from math import isfinite
 from pathlib import Path
 from typing import Any
@@ -16,11 +18,28 @@ from .artifacts import provenance, tensor_to_data, write_json_atomic
 from .engine import CentralizedInformationEngine, PhysicsConfig, mean_drift_matching
 
 
-def load_experiment_config(path: Path) -> tuple[PhysicsConfig, dict[str, float], dict[str, Any]]:
-    """Load and validate a JSON experiment configuration."""
+@dataclass(frozen=True)
+class LoadedExperiment:
+    config: PhysicsConfig
+    theta_values: dict[str, float]
+    document: dict[str, Any]
+    source_sha256: str
 
-    with path.open("r", encoding="utf-8") as stream:
-        raw = json.load(stream)
+
+def _unique_object(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+    result: dict[str, Any] = {}
+    for key, value in pairs:
+        if key in result:
+            raise ValueError(f"duplicate configuration key: {key}")
+        result[key] = value
+    return result
+
+
+def load_experiment_snapshot(path: Path) -> LoadedExperiment:
+    """Hash the exact bytes that are parsed, before any simulation can run."""
+    source = path.read_bytes()
+    raw = json.loads(source, object_pairs_hook=_unique_object)
+
     if not isinstance(raw, dict):
         raise ValueError("configuration root must be a JSON object")
     theta_raw = raw.get("theta")
@@ -29,6 +48,11 @@ def load_experiment_config(path: Path) -> tuple[PhysicsConfig, dict[str, float],
     expected_theta = {"M0", "gamma", "alpha"}
     if set(theta_raw) != expected_theta:
         raise ValueError("theta must contain exactly M0, gamma, and alpha")
+    if any(
+        isinstance(value, bool) or not isinstance(value, (int, float))
+        for value in theta_raw.values()
+    ):
+        raise ValueError("theta values must be real JSON numbers, not booleans or strings")
 
     config_raw = {key: value for key, value in raw.items() if key != "theta"}
     config = PhysicsConfig(**config_raw)
@@ -39,7 +63,7 @@ def load_experiment_config(path: Path) -> tuple[PhysicsConfig, dict[str, float],
             "gamma": float(theta_raw["gamma"]),
             "alpha": float(theta_raw["alpha"]),
         }
-    except (TypeError, ValueError) as exc:
+    except (TypeError, ValueError, OverflowError) as exc:
         raise ValueError("theta values must be real numbers") from exc
     if not all(isfinite(value) for value in theta_values.values()):
         raise ValueError("theta values must be finite")
@@ -47,7 +71,13 @@ def load_experiment_config(path: Path) -> tuple[PhysicsConfig, dict[str, float],
         raise ValueError("theta.M0 must exceed m_floor")
     if theta_values["gamma"] <= 0.0 or theta_values["alpha"] <= 0.0:
         raise ValueError("theta.gamma and theta.alpha must be positive")
-    return config, theta_values, raw
+    return LoadedExperiment(config, theta_values, raw, hashlib.sha256(source).hexdigest())
+
+
+def load_experiment_config(path: Path) -> tuple[PhysicsConfig, dict[str, float], dict[str, Any]]:
+    """Backward-compatible three-value view of an exact configuration snapshot."""
+    experiment = load_experiment_snapshot(path)
+    return experiment.config, experiment.theta_values, experiment.document
 
 
 def make_theta(values: dict[str, float], requires_grad: bool) -> torch.Tensor:
@@ -63,12 +93,13 @@ def make_theta(values: dict[str, float], requires_grad: bool) -> torch.Tensor:
 
 
 def validation_payload(config_path: Path) -> dict[str, Any]:
-    config, theta_values, raw = load_experiment_config(config_path)
+    experiment = load_experiment_snapshot(config_path)
+    config, theta_values, raw = experiment.config, experiment.theta_values, experiment.document
     theta = make_theta(theta_values, requires_grad=False)
     matching = mean_drift_matching(config, theta)
     alpha_from_a = theta[1] * matching["alpha_per_gamma"]
     return {
-        "schema_version": "1.0",
+        "schema_version": "2.0",
         "package_version": __version__,
         "status": "PASS",
         "config": raw,
@@ -80,10 +111,16 @@ def validation_payload(config_path: Path) -> dict[str, Any]:
         "drift_mismatch": theta[2] - alpha_from_a,
         "required_noise_scaling_for_B_star": "M^(-3/2)",
         "requested_noise_scaling_for_B": "M^(-1)",
+        "matched_control_drift": "gamma * hawking_kappa * E[X], independent of requested alpha",
+        "matched_control_scope": "interior local moments; jump clipping and stopped Euler boundaries are different",
+        "provenance": provenance(
+            config_path, seed=0, replicates=0, config_sha256=experiment.source_sha256
+        ),
         "warnings": [
             "The requested B diffusion is not globally moment-matched to A.",
             "Transfer entropy requires causal observation-history predictors.",
             "All paths are stopped at m_floor; no M=0 claim is made.",
+            "Noisy initial calibration does not by itself establish regular M0 Fisher information at moving cutoff support.",
         ],
     }
 
@@ -93,7 +130,6 @@ def command_validate(args: argparse.Namespace) -> int:
     payload = validation_payload(config_path)
     if args.output:
         output_path = Path(args.output)
-        payload["provenance"] = provenance(config_path, seed=0, replicates=0)
         write_json_atomic(output_path, payload)
         print(f"Wrote {output_path}")
     print(json.dumps(tensor_to_data(payload), indent=2, sort_keys=True))
@@ -102,7 +138,11 @@ def command_validate(args: argparse.Namespace) -> int:
 
 def command_run(args: argparse.Namespace) -> int:
     config_path = Path(args.config)
-    config, theta_values, raw = load_experiment_config(config_path)
+    experiment = load_experiment_snapshot(config_path)
+    config, theta_values, raw = experiment.config, experiment.theta_values, experiment.document
+    run_provenance = provenance(
+        config_path, int(args.seed), int(args.replicates), config_sha256=experiment.source_sha256
+    )
     theta = make_theta(theta_values, requires_grad=True)
     result = CentralizedInformationEngine(config).evaluate(
         theta=theta,
@@ -111,14 +151,14 @@ def command_run(args: argparse.Namespace) -> int:
     )
     output_path = Path(args.output)
     payload = {
-        "schema_version": "1.0",
+        "schema_version": "2.0",
         "package_version": __version__,
         "status": "PASS",
         "config": raw,
         "theta_order": ["M0", "gamma", "alpha"],
         "theta": theta,
         "result": result,
-        "provenance": provenance(config_path, int(args.seed), int(args.replicates)),
+        "provenance": run_provenance,
     }
     write_json_atomic(output_path, payload)
     print(f"Wrote {output_path}")

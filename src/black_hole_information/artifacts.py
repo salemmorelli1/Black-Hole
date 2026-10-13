@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import platform
 import tempfile
 from datetime import UTC, datetime
 from pathlib import Path
@@ -38,17 +39,28 @@ def sha256_file(path: Path) -> str:
     return digest.hexdigest()
 
 
-def provenance(config_path: Path, seed: int, replicates: int) -> dict[str, Any]:
+def source_hashes() -> dict[str, str]:
+    """Fingerprint the actual Python implementation, including editable installs."""
+    return {path.name: sha256_file(path) for path in sorted(Path(__file__).parent.glob("*.py"))}
+
+
+def provenance(
+    config_path: Path, seed: int, replicates: int, *, config_sha256: str | None = None
+) -> dict[str, Any]:
     """Create an auditable run manifest."""
 
     return {
         "created_at_utc": datetime.now(UTC).isoformat(),
         "config_path": str(config_path.resolve()),
-        "config_sha256": sha256_file(config_path),
+        "config_sha256": config_sha256 or sha256_file(config_path),
         "seed": int(seed),
         "replicates": int(replicates),
         "torch_version": torch.__version__,
         "default_dtype": str(torch.get_default_dtype()),
+        "python_version": platform.python_version(),
+        "torch_num_threads": torch.get_num_threads(),
+        "source_sha256": source_hashes(),
+        "run_id": os.environ.get("BHID_RUN_ID"),
     }
 
 
@@ -73,4 +85,4 @@ def write_json_atomic(path: Path, payload: dict[str, Any]) -> None:
             temporary_path.unlink()
 
 
-__all__ = ["provenance", "sha256_file", "tensor_to_data", "write_json_atomic"]
+__all__ = ["provenance", "sha256_file", "source_hashes", "tensor_to_data", "write_json_atomic"]

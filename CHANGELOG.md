@@ -1,5 +1,21 @@
 # Changelog
 
+
+## 0.2.0 — 2026-10-12
+
+- Stop packet rates and entropy generators at absorption; use capped Planck
+  moments for the stopped jump entropy generator.
+- Match B_star's interior drift to A and retain the requested B model.
+- Use normalized finite-Euler increment likelihoods for diffusion scores and
+  stable log-CDFs for censored proposals. Validate fixed-data path support.
+- Preserve zero-intensity information limits, reject unsupported predictors,
+  and stabilize leave-one-out means. Qualify formal score geometry and causal
+  predictor status; record both common-coordinate evaluation points.
+- Freeze exact pipeline inputs, bind fresh stage evidence to a run ID and
+  implementation hashes, and reject empty validation suites.
+- Identify browser scores and the historical report accurately, preserve
+  absorbing visual trajectories, and add Windows/Edge and source-byte checks.
+
 All notable changes are documented here.
 
 ## Unreleased

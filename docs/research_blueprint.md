@@ -1,5 +1,16 @@
 # A Statistical Information Theory of Evaporating Black Holes
 
+> **Implementation update (October 12, 2026; version 0.2.0).** The stopped
+> packet rate and both entropy generators vanish at the cutoff; packet entropy
+> uses capped mark moments. B_star now uses the packet-implied drift as well as
+> its variance scaling. Diffusion score outer products use the normalized
+> finite-Euler increment likelihood, not a bare Girsanov ratio. Censored proposal
+> tails use stable log-CDFs, and zero-rate information limits are retained.
+> See [the implementation audit](STOPPED_EXPERIMENT_AUDIT_2026-10-12.md). Noisy
+> initial calibration alone does not establish regular M0 Fisher information
+> with moving cutoff support. The theorem/proof sketches below require their
+> regularity and detector assumptions; the software does not certify them.
+
 ## Research blueprint for a PhD thesis in Statistics
 
 ### Scope and status

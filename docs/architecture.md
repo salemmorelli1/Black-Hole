@@ -82,6 +82,9 @@ Required quantities:
 - conditional pathwise gradient of the scalar residual;
 - entropy-rate summaries;
 - predictor-status labels specifying whether transfer-entropy conditions hold.
+- normalized finite-Euler increment likelihood for the diffusion score;
+- explicit limits on M0 regularity and observed-detector interpretation;
+- recorded common-coordinate evaluation points and per-path information values.
 
 Information rates use the `n_steps` left-endpoint states for the half-open
 intervals `[t_k, t_{k+1})`. The terminal state at `t=T` is retained in simulated
@@ -96,6 +99,8 @@ Output:
 
 A failed unit test produces a nonzero process exit code. The canonical runner stops
 immediately and does not claim a successful pipeline.
+Zero, unreported, or entirely skipped tests also fail validation. Actual test
+counts and implementation hashes are retained in the validation artifact.
 
 ## Derivative semantics
 
@@ -111,7 +116,7 @@ The engine implements the first two and labels the limitation on the third.
 
 ## Reproducibility policy
 
-Every artifact contains:
+Every numerical stage artifact contains:
 
 - UTC creation time;
 - source configuration path and SHA-256 digest;
@@ -121,3 +126,9 @@ Every artifact contains:
 - default tensor dtype.
 
 All scientific calculations use float64 by default.
+Numerical stages hash their input bytes when loading, before computation.
+The canonical runner freezes one exact input file for all stages and records
+each fresh output hash in `pipeline_manifest.json`. A matching run ID and
+implementation fingerprint are required. Part 4 records test evidence rather
+than a physical configuration/replicate count. A run with tests intentionally
+skipped is labeled `SIMULATION_ONLY`.
