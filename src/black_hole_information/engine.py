@@ -46,7 +46,7 @@ def _require_finite_number(name: str, value: float) -> None:
         raise ValueError(f"{name} must be a finite real number")
     try:
         finite = isfinite(value)
-    except (TypeError, ValueError) as exc:
+    except (TypeError, ValueError, OverflowError) as exc:
         raise ValueError(f"{name} must be a finite real number") from exc
     if not finite:
         raise ValueError(f"{name} must be finite")
@@ -62,7 +62,7 @@ def _validate_physical_theta(theta: Tensor, m_floor: float) -> None:
     if not bool(torch.isfinite(theta).all().detach().item()):
         raise ValueError("theta must contain only finite values")
     m0, gamma, alpha = theta.detach().unbind()
-    if float(m0) <= m_floor:
+    if bool(m0 <= _scalar(m_floor, m0)):
         raise ValueError("M0 must exceed m_floor")
     if float(gamma) <= 0.0 or float(alpha) <= 0.0:
         raise ValueError("gamma and alpha must be strictly positive")
@@ -101,6 +101,10 @@ def positive_parameters(raw_theta: Tensor, m_floor: float) -> tuple[Tensor, Tens
         )
     )
     log_abs_det_jacobian = F.logsigmoid(raw_theta).sum()
+    try:
+        _validate_physical_theta(physical, m_floor)
+    except ValueError as exc:
+        raise ValueError("raw_theta is outside the representable physical parameter range") from exc
     return physical, log_abs_det_jacobian
 
 
@@ -209,6 +213,116 @@ class DiffusionPath:
         )
 
 
+def _validate_observation(y0: Tensor, theta: Tensor) -> None:
+    if y0.shape != () or not y0.is_floating_point():
+        raise ValueError("y0 must be a floating-point scalar")
+    if y0.dtype != theta.dtype or y0.device != theta.device or not bool(torch.isfinite(y0)):
+        raise ValueError("y0 must be finite and share theta's dtype and device")
+
+
+def _validate_jump_path(path: JumpPath, theta: Tensor, config: PhysicsConfig) -> None:
+    count = path.event_times.numel()
+    for value in (path.event_times, path.energies):
+        if value.shape != (count,) or not value.is_floating_point():
+            raise ValueError("jump event times and energies must be aligned floating-point vectors")
+        if (
+            value.dtype != theta.dtype
+            or value.device != theta.device
+            or not bool(torch.isfinite(value).all())
+        ):
+            raise ValueError("jump data must be finite and share theta's dtype and device")
+    if (
+        path.terminal.shape != (count,)
+        or path.terminal.dtype != torch.bool
+        or path.terminal.device != theta.device
+    ):
+        raise ValueError("jump terminal flags must be aligned boolean data")
+    _require_finite_number("path.horizon", path.horizon)
+    if path.horizon != config.horizon:
+        raise ValueError("jump horizon does not match the experiment")
+    if (
+        bool((path.event_times <= 0).any())
+        or bool((path.event_times >= path.horizon).any())
+        or bool((path.event_times[1:] <= path.event_times[:-1]).any())
+    ):
+        raise ValueError("jump event times must be strictly increasing within the horizon")
+    if bool((path.energies <= 0).any()):
+        raise ValueError("jump energies must be strictly positive")
+    terminal_count = int(path.terminal.sum())
+    if (
+        terminal_count > 1
+        or (terminal_count and not bool(path.terminal[-1]))
+        or bool(path.absorbed) != bool(terminal_count)
+    ):
+        raise ValueError("a jump terminal event must be the final event and agree with absorption")
+
+
+def _validate_diffusion_path(path: DiffusionPath, theta: Tensor, config: PhysicsConfig) -> None:
+    if path.times.ndim != 1 or path.times.numel() < 2 or path.masses.shape != path.times.shape:
+        raise ValueError(
+            "diffusion times and masses must be aligned vectors with at least two states"
+        )
+    for value in (path.times, path.masses):
+        if (
+            not value.is_floating_point()
+            or value.dtype != theta.dtype
+            or value.device != theta.device
+            or not bool(torch.isfinite(value).all())
+        ):
+            raise ValueError(
+                "diffusion data must be finite and share theta's floating dtype and device"
+            )
+    steps = path.times.numel() - 1
+    for mask in (path.regular_transition, path.hit_transition):
+        if mask.shape != (steps,) or mask.dtype != torch.bool or mask.device != theta.device:
+            raise ValueError("diffusion transition flags must be aligned boolean vectors")
+    tolerance = 8 * torch.finfo(theta.dtype).eps * max(1.0, config.horizon)
+    if (
+        abs(float(path.times[0])) > tolerance
+        or abs(float(path.times[-1]) - config.horizon) > tolerance
+        or bool((path.times[1:] <= path.times[:-1]).any())
+    ):
+        raise ValueError("diffusion times must increase from zero to the experiment horizon")
+    alive = True
+    floor_value = float(_scalar(config.m_floor, theta))
+    for index in range(steps):
+        regular, hit = bool(path.regular_transition[index]), bool(path.hit_transition[index])
+        if regular and hit:
+            raise ValueError("a diffusion transition cannot be both regular and a boundary hit")
+        if not alive:
+            if (
+                regular
+                or hit
+                or float(path.masses[index]) != floor_value
+                or float(path.masses[index + 1]) != floor_value
+            ):
+                raise ValueError("diffusion transitions after absorption must remain at the cutoff")
+        elif float(path.masses[index]) <= floor_value:
+            raise ValueError("an active diffusion transition must start above the cutoff")
+        elif regular:
+            if float(path.masses[index + 1]) <= floor_value:
+                raise ValueError("regular diffusion transitions must end above the cutoff")
+        elif hit:
+            if float(path.masses[index + 1]) != floor_value:
+                raise ValueError("a censored diffusion transition must end at the cutoff")
+            alive = False
+        else:
+            raise ValueError("an active diffusion transition must be regular or a boundary hit")
+
+
+def _log_gamma3_survival(z: Tensor) -> Tensor:
+    # log(exp(-z)*(1+z+z^2/2)) without squaring huge z or differentiating log(0).
+    finite = torch.isfinite(z)
+    z_safe = torch.where(finite, z, torch.zeros_like(z))
+    positive = z_safe > 0
+    safe = torch.where(positive, z_safe, torch.ones_like(z))
+    quadratic = torch.where(
+        positive, 2.0 * torch.log(safe) - torch.log(_scalar(2.0, z)), torch.full_like(z, -torch.inf)
+    )
+    result = -z_safe + torch.logaddexp(torch.log1p(z_safe), quadratic)
+    return torch.where(finite, result, torch.full_like(result, -torch.inf))
+
+
 class PlanckNumberMarks:
     r"""Finite-mixture representation of the dimensionless Planck number law.
 
@@ -217,9 +331,9 @@ class PlanckNumberMarks:
 
         K ~ p_k proportional to k^{-3},   X | K=k ~ Gamma(shape=3, rate=k).
 
-    Truncating the mixture at ``k_max`` is exponentially accurate away from zero
-    and, importantly, makes sampling and likelihood evaluation internally
-    consistent.  Because shape=3 is integer, Gamma sampling is implemented as a
+    Truncating and renormalizing at ``k_max`` incurs an O(k_max**-2) mixture-tail
+    approximation, and keeps sampling and likelihood internally consistent.
+    Because shape=3 is integer, Gamma sampling is implemented as a
     sum of three exponential variables and needs no non-PyTorch dependency.
     """
 
@@ -243,7 +357,7 @@ class PlanckNumberMarks:
         index = torch.multinomial(log_weights.exp(), 1, generator=generator)
         rate = k[index].squeeze(0)
         u = torch.rand((3,), dtype=like.dtype, device=like.device, generator=generator)
-        u = u.clamp_min(self.eps)
+        u = u.clamp_min(torch.finfo(like.dtype).tiny)
         return -torch.log(u).sum() / rate
 
     def log_prob_dimensionless(self, x: Tensor) -> Tensor:
@@ -271,8 +385,35 @@ class PlanckNumberMarks:
             raise ValueError("x must contain only finite, nonnegative values")
         k, log_weights = self._components(x)
         z = k * x.unsqueeze(-1)
-        log_survival_component = -z + torch.log1p(z + 0.5 * z.square())
+        log_survival_component = _log_gamma3_survival(z)
         return torch.logsumexp(log_weights + log_survival_component, dim=-1)
+
+    def capped_moment(self, order: int, upper: Tensor) -> Tensor:
+        """E[min(X, upper)**order], including the terminal survival atom."""
+        if isinstance(order, bool) or not isinstance(order, int) or order < 0:
+            raise ValueError("order must be a nonnegative integer")
+        if (
+            not upper.is_floating_point()
+            or not bool(torch.isfinite(upper).all())
+            or bool((upper < 0).any())
+        ):
+            raise ValueError("upper must contain finite nonnegative floating-point values")
+        if order == 0:
+            return torch.ones_like(upper)
+        k, log_weights = self._components(upper)
+        z = k * upper.unsqueeze(-1)
+        factor = torch.exp(
+            torch.lgamma(_scalar(3.0 + order, upper)) - torch.lgamma(_scalar(3.0, upper))
+        ) / k.pow(order)
+        partial = factor * torch.special.gammainc(torch.full_like(z, 3.0 + order), z)
+        positive = upper.unsqueeze(-1) > 0
+        safe = torch.where(positive, upper.unsqueeze(-1), torch.ones_like(z))
+        atom = torch.where(
+            positive,
+            torch.exp(order * torch.log(safe) + _log_gamma3_survival(z)),
+            torch.zeros_like(z),
+        )
+        return ((partial + atom) * log_weights.exp()).sum(dim=-1)
 
     def moment(self, order: int, like: Tensor) -> Tensor:
         """Return E[X**order] for a nonnegative integer order."""
@@ -297,7 +438,10 @@ class PacketJumpDiffusion:
         self.marks = PlanckNumberMarks(config.planck_mixture_terms, config.eps)
 
     def intensity(self, mass: Tensor, gamma: Tensor) -> Tensor:
-        return gamma / mass.clamp_min(self.config.m_floor)
+        active = mass > _scalar(self.config.m_floor, mass)
+        return torch.where(
+            active, gamma / mass.clamp_min(self.config.m_floor), torch.zeros_like(mass)
+        )
 
     def temperature(self, mass: Tensor) -> Tensor:
         return _scalar(self.config.hawking_kappa, mass) / mass
@@ -322,7 +466,7 @@ class PacketJumpDiffusion:
         for _ in range(self.config.max_events):
             rate = self.intensity(mass, gamma)
             u = torch.rand((), dtype=theta.dtype, device=theta.device, generator=generator)
-            wait = -torch.log(u.clamp_min(self.config.eps)) / rate
+            wait = -torch.log(u.clamp_min(torch.finfo(theta.dtype).tiny)) / rate
             next_t = t + wait
             if float(next_t.detach()) >= self.config.horizon:
                 break
@@ -369,6 +513,9 @@ class PacketJumpDiffusion:
         """
 
         _validate_physical_theta(theta, self.config.m_floor)
+        path, y0 = path.detached(), y0.detach()
+        _validate_jump_path(path, theta, self.config)
+        _validate_observation(y0, theta)
         m0, gamma, _alpha_unused = theta.unbind()
         sd0 = _scalar(self.config.initial_observation_sd, theta)
         ll = _normal_log_prob(y0, m0, sd0)
@@ -388,6 +535,8 @@ class PacketJumpDiffusion:
                 mass = _scalar(self.config.m_floor, mass)
             else:
                 energy = path.energies[i]
+                if bool(mass - energy <= _scalar(self.config.m_floor, mass)):
+                    return theta[0] * 0.0 + _scalar(-torch.inf, theta)
                 x = energy / temp
                 ll = ll + self.marks.log_prob_dimensionless(x) - torch.log(temp)
                 mass = mass - energy
@@ -405,9 +554,8 @@ class PacketJumpDiffusion:
         masses: list[Tensor] = []
         event_index = 0
         for time in grid:
-            while (
-                event_index < path.event_times.numel()
-                and bool((path.event_times[event_index] <= time).detach().item())
+            while event_index < path.event_times.numel() and bool(
+                (path.event_times[event_index] <= time).detach().item()
             ):
                 if bool(path.terminal[event_index].item()):
                     mass = _scalar(self.config.m_floor, mass)
@@ -418,16 +566,11 @@ class PacketJumpDiffusion:
         return torch.stack(masses)
 
     def entropy_drift(self, mass: Tensor, gamma: Tensor) -> Tensor:
-        r"""Interior generator applied to S_BH(M)=4*pi*M^2.
-
-        This expression uses the configured finite-mixture Planck moments and is an
-        interior approximation.  The exact stopped generator replaces the moments
-        by an integral with the terminal boundary atom.
-        """
-
-        c1 = self.marks.moment(1, mass)
-        c2 = self.marks.moment(2, mass)
+        r"""Stopped generator of S_BH(M)=4*pi*M^2 for the finite Planck mixture."""
         temp = self.temperature(mass)
+        upper = (mass - _scalar(self.config.m_floor, mass)).clamp_min(0.0) / temp
+        c1 = self.marks.capped_moment(1, upper)
+        c2 = self.marks.capped_moment(2, upper)
         rate = self.intensity(mass, gamma)
         return rate * (-8.0 * pi * mass * temp * c1 + 4.0 * pi * temp.square() * c2)
 
@@ -441,7 +584,11 @@ class ContinuousMassDiffusion:
         self.moment_matched = bool(moment_matched)
         self._marks = PlanckNumberMarks(config.planck_mixture_terms, config.eps)
 
-    def drift(self, mass: Tensor, alpha: Tensor) -> Tensor:
+    def drift(self, mass: Tensor, alpha: Tensor, gamma: Tensor | None = None) -> Tensor:
+        if self.moment_matched:
+            if gamma is None:
+                raise ValueError("gamma is required for the moment-matched drift")
+            alpha = gamma * _scalar(self.config.hawking_kappa, mass) * self._marks.moment(1, mass)
         return -alpha / mass.square()
 
     def diffusion(self, mass: Tensor, gamma: Tensor | None = None) -> Tensor:
@@ -483,7 +630,7 @@ class ContinuousMassDiffusion:
                 hit.append(False)
                 continue
             noise = torch.randn((), dtype=theta.dtype, device=theta.device, generator=generator)
-            candidate = mass + self.drift(mass, alpha) * dt
+            candidate = mass + self.drift(mass, alpha, gamma) * dt
             candidate = candidate + self.diffusion(mass, gamma) * sqrt_dt * noise
             boundary_hit = bool((candidate <= floor).detach().item())
             if boundary_hit:
@@ -512,23 +659,30 @@ class ContinuousMassDiffusion:
 
             (b/a) dM - 0.5 (b^2/a) dt,   a=sigma^2.
 
-        The boundary-hitting increment is censored and contributes the log ratio of
-        Gaussian hitting probabilities under the target and reference drifts.
+        The boundary-crossing Euler proposal is censored and contributes the log
+        ratio of its Gaussian tail probabilities under the two drifts. This is
+        not an exact between-grid diffusion first-passage probability.
+
+        This is a conditional likelihood-ratio diagnostic, not the normalized
+        joint likelihood for M0 or a parameter-dependent diffusion coefficient.
+        Use euler_path_loglik for the finite-grid increment experiment's scores.
         """
 
         _validate_physical_theta(theta, self.config.m_floor)
+        path, y0 = path.detached(), y0.detach()
+        _validate_diffusion_path(path, theta, self.config)
+        _validate_observation(y0, theta)
         m0, gamma, alpha = theta.unbind()
         sd0 = _scalar(self.config.initial_observation_sd, theta)
         ll = _normal_log_prob(y0, m0, sd0)
         floor = _scalar(self.config.m_floor, theta)
-        eps = _scalar(self.config.eps, theta)
 
         for k in range(path.times.numel() - 1):
             if not bool((path.regular_transition[k] | path.hit_transition[k]).item()):
                 continue
             mass = path.masses[k]
             dt = path.times[k + 1] - path.times[k]
-            b = self.drift(mass, alpha)
+            b = self.drift(mass, alpha, gamma)
             s = self.diffusion(mass, gamma)
             a = s.square()
             if bool(path.regular_transition[k].item()):
@@ -538,16 +692,49 @@ class ContinuousMassDiffusion:
                 scale = s * torch.sqrt(dt)
                 z_target = (floor - mass - b * dt) / scale
                 z_reference = (floor - mass) / scale
-                p_target = torch.special.ndtr(z_target).clamp_min(eps)
-                p_reference = torch.special.ndtr(z_reference).clamp_min(eps)
-                ll = ll + torch.log(p_target) - torch.log(p_reference)
+                ll = ll + torch.special.log_ndtr(z_target) - torch.special.log_ndtr(z_reference)
+        return ll
+
+    def euler_path_loglik(self, path: DiffusionPath, theta: Tensor, y0: Tensor) -> Tensor:
+        """Normalized fixed-data likelihood of regular increments and hit flags.
+
+        The simulator's initial absolute mass is metadata, not a perfect
+        observation of unknown M0. Regular increments are held fixed and mass is
+        reconstructed from the candidate M0. A censored hit contributes its
+        probability, not a Gaussian density for the clamped increment. The moving
+        cutoff support can still make M0 nonregular; score outer products alone
+        do not establish a regular Fisher metric or a Cramer-Rao bound.
+        """
+        _validate_physical_theta(theta, self.config.m_floor)
+        path, y0 = path.detached(), y0.detach()
+        _validate_diffusion_path(path, theta, self.config)
+        _validate_observation(y0, theta)
+        m0, gamma, alpha = theta.unbind()
+        ll = _normal_log_prob(y0, m0, _scalar(self.config.initial_observation_sd, theta))
+        mass, floor = m0, _scalar(self.config.m_floor, theta)
+        for index in range(path.times.numel() - 1):
+            if not bool(path.regular_transition[index] | path.hit_transition[index]):
+                continue
+            dt = path.times[index + 1] - path.times[index]
+            mean_increment = self.drift(mass, alpha, gamma) * dt
+            scale = self.diffusion(mass, gamma) * torch.sqrt(dt)
+            if bool(path.hit_transition[index]):
+                ll = ll + torch.special.log_ndtr((floor - mass - mean_increment) / scale)
+                break
+            increment = path.masses[index + 1] - path.masses[index]
+            next_mass = mass + increment
+            if bool(next_mass <= floor):
+                return theta[0] * 0.0 + _scalar(-torch.inf, theta)
+            ll = ll + _normal_log_prob(increment, mean_increment, scale)
+            mass = next_mass
         return ll
 
     def entropy_drift(self, mass: Tensor, gamma: Tensor, alpha: Tensor) -> Tensor:
         r"""Itô drift of S_BH(M)=4*pi*M^2."""
 
         s = self.diffusion(mass, gamma)
-        return 8.0 * pi * mass * self.drift(mass, alpha) + 4.0 * pi * s.square()
+        rate = 8.0 * pi * mass * self.drift(mass, alpha, gamma) + 4.0 * pi * s.square()
+        return torch.where(mass > _scalar(self.config.m_floor, mass), rate, torch.zeros_like(rate))
 
 
 def detector_signal(mass: Tensor, gain: float) -> Tensor:
@@ -556,11 +743,22 @@ def detector_signal(mass: Tensor, gain: float) -> Tensor:
     _require_finite_number("gain", gain)
     if gain < 0.0:
         raise ValueError("gain must be nonnegative")
-    if not bool(torch.isfinite(mass).all().detach().item()) or bool(
-        (mass <= 0.0).any().detach().item()
+    if (
+        not mass.is_floating_point()
+        or not bool(torch.isfinite(mass).all().detach().item())
+        or bool((mass <= 0.0).any().detach().item())
     ):
         raise ValueError("mass must contain only finite, strictly positive values")
     return _scalar(gain, mass) / mass.square()
+
+
+def _validate_channel_tensors(full: Tensor, reduced: Tensor) -> None:
+    if not full.is_floating_point() or not reduced.is_floating_point():
+        raise ValueError("channel values must be real floating-point tensors")
+    if full.dtype != reduced.dtype or full.device != reduced.device:
+        raise ValueError("channel values must share dtype and device")
+    if full.ndim < 1:
+        raise ValueError("channel values must include an interval dimension")
 
 
 def point_process_information(
@@ -588,6 +786,7 @@ def point_process_information(
         raise ValueError("eps must be in (0, 1)")
     if full_rate.shape != reduced_rate.shape:
         raise ValueError("full_rate and reduced_rate must have the same shape")
+    _validate_channel_tensors(full_rate, reduced_rate)
     if not bool(torch.isfinite(full_rate).all().detach().item()) or not bool(
         torch.isfinite(reduced_rate).all().detach().item()
     ):
@@ -596,9 +795,22 @@ def point_process_information(
         (reduced_rate < 0.0).any().detach().item()
     ):
         raise ValueError("rates must be nonnegative")
-    full = full_rate.clamp_min(eps)
-    reduced = reduced_rate.clamp_min(eps)
-    return _scalar(dt, full) * (full * torch.log(full / reduced) - full + reduced).sum(dim=-1)
+    # Preserve the exact limits: D(0||r)=r, D(0||0)=0, D(f||0)=+inf for f>0.
+    # eps is retained as a validated API argument, not an undocumented rate floor.
+    full, reduced = full_rate, reduced_rate
+    safe_full = torch.where(full > 0, full, torch.ones_like(full))
+    safe_reduced = torch.where(reduced > 0, reduced, torch.ones_like(reduced))
+    difference = full - reduced
+    close = (full > 0) & (reduced > 0) & (difference.abs() <= 0.5 * reduced)
+    relative = torch.where(close, difference / safe_reduced, torch.zeros_like(full))
+    ordinary = full * (torch.log(safe_full) - torch.log(safe_reduced)) - full + reduced
+    integrand = torch.where(close, full * torch.log1p(relative) - difference, ordinary).clamp_min(
+        0.0
+    )
+    integrand = torch.where(
+        (full > 0) & (reduced == 0), torch.full_like(full, torch.inf), integrand
+    )
+    return _scalar(dt, full) * integrand.sum(dim=-1)
 
 
 def diffusion_information(
@@ -620,14 +832,17 @@ def diffusion_information(
         raise ValueError("observation_sd and dt must be strictly positive")
     if full_signal.shape != reduced_signal.shape:
         raise ValueError("full_signal and reduced_signal must have the same shape")
+    _validate_channel_tensors(full_signal, reduced_signal)
     if not bool(torch.isfinite(full_signal).all().detach().item()) or not bool(
         torch.isfinite(reduced_signal).all().detach().item()
     ):
         raise ValueError("signals must contain only finite values")
     rho2 = _scalar(observation_sd**2, full_signal)
-    return 0.5 * _scalar(dt, full_signal) * (
-        (full_signal - reduced_signal).square() / rho2
-    ).sum(dim=-1)
+    return (
+        0.5
+        * _scalar(dt, full_signal)
+        * ((full_signal - reduced_signal).square() / rho2).sum(dim=-1)
+    )
 
 
 def score_vector(log_likelihood: Tensor, theta: Tensor) -> Tensor:
@@ -687,9 +902,7 @@ def common_parameter_pullback(
     _require_finite_number("hawking_kappa", hawking_kappa)
     if hawking_kappa <= 0.0:
         raise ValueError("hawking_kappa must be strictly positive")
-    if planck_mean_x.numel() != 1 or not bool(
-        torch.isfinite(planck_mean_x).all().detach().item()
-    ):
+    if planck_mean_x.numel() != 1 or not bool(torch.isfinite(planck_mean_x).all().detach().item()):
         raise ValueError("planck_mean_x must be a finite scalar")
     if float(planck_mean_x.detach()) <= 0.0:
         raise ValueError("planck_mean_x must be strictly positive")
@@ -718,7 +931,12 @@ def _leave_one_out_mean(values: Tensor) -> Tensor:
         raise ValueError("at least two replicates are required for a leave-one-out baseline")
     if not bool(torch.isfinite(values).all().detach().item()):
         raise ValueError("values must contain only finite values")
-    return (values.sum(dim=0, keepdim=True) - values) / (values.shape[0] - 1)
+    # Avoid subtracting a dominant replicate from a rounded total, which can
+    # invent a zero predictor even when every other intensity is positive.
+    zero = torch.zeros_like(values[:1])
+    prefix = torch.cat((zero, values.cumsum(dim=0)[:-1]), dim=0)
+    suffix = torch.cat((values.flip(0).cumsum(dim=0).flip(0)[1:], zero), dim=0)
+    return (prefix + suffix) / (values.shape[0] - 1)
 
 
 class CentralizedInformationEngine:
@@ -781,9 +999,9 @@ class CentralizedInformationEngine:
             path_a = self.jump.simulate(theta, generator)
             path_b = self.diffusion.simulate(theta, generator)
 
-            # A shared noisy initial measurement makes M0 a dominated parameter in
-            # both likelihoods.  Without it, a deterministic initial condition can
-            # give a singular or nonregular Fisher problem.
+            # A shared noisy initial measurement supplies the initial observation.
+            # The perfect simulated starting mass is not an observed datum for B.
+            # Moving cutoff support still requires care about M0 regularity.
             z0 = torch.randn((), dtype=theta.dtype, device=theta.device, generator=generator)
             y0 = theta[0] + _scalar(self.config.initial_observation_sd, theta) * z0
 
@@ -791,7 +1009,7 @@ class CentralizedInformationEngine:
             # Detaching the simulated realization prevents contamination by the
             # pathwise derivative of the data-generating map.
             ll_a = self.jump.complete_path_loglik(path_a.detached(), theta, y0.detach())
-            ll_b = self.diffusion.girsanov_loglik(path_b.detached(), theta, y0.detach())
+            ll_b = self.diffusion.euler_path_loglik(path_b.detached(), theta, y0.detach())
             scores_a.append(score_vector(ll_a, theta))
             scores_b.append(score_vector(ll_b, theta))
 
@@ -810,10 +1028,8 @@ class CentralizedInformationEngine:
         # not an additional interval and must not receive another factor of dt.
         mass_a_intervals = mass_a[..., :-1]
         mass_b_intervals = mass_b[..., :-1]
-        full_rate_a = (
-            _scalar(self.config.detector_efficiency, theta)
-            * theta[1]
-            / mass_a_intervals.clamp_min(self.config.m_floor)
+        full_rate_a = _scalar(self.config.detector_efficiency, theta) * self.jump.intensity(
+            mass_a_intervals, theta[1]
         )
         full_signal_b = detector_signal(mass_b_intervals, self.config.observation_gain)
 
@@ -821,23 +1037,30 @@ class CentralizedInformationEngine:
             reduced_rate_a = _leave_one_out_mean(full_rate_a)
             rate_label = "open_loop_leave_one_out; not transfer entropy"
         else:
-            rate_label = "user_supplied_predictable_filter"
+            rate_label = "user_supplied; causality_not_verified"
 
         if reduced_signal_b is None:
             reduced_signal_b = _leave_one_out_mean(full_signal_b)
             signal_label = "open_loop_leave_one_out; not transfer entropy"
         else:
-            signal_label = "user_supplied_predictable_filter"
+            signal_label = "user_supplied; causality_not_verified"
 
-        info_a_by_path = point_process_information(
-            full_rate_a, reduced_rate_a, dt, self.config.eps
-        )
+        if bool(((full_rate_a > 0) & (reduced_rate_a == 0)).any()):
+            raise ValueError(
+                "reduced_rate_a is zero where the full rate is positive; the contrast has infinite information and cannot supply a finite gradient. Check predictor support."
+            )
+
+        info_a_by_path = point_process_information(full_rate_a, reduced_rate_a, dt, self.config.eps)
         info_b_by_path = diffusion_information(
             full_signal_b, reduced_signal_b, self.config.observation_sd, dt
         )
         info_a = info_a_by_path.mean()
         info_b = info_b_by_path.mean()
         delta_information = info_b - info_a
+        if not bool(torch.isfinite(delta_information)):
+            raise ValueError(
+                "the information contrast is not finite; no finite-gradient result can be published"
+            )
 
         # Pathwise sensitivity is conditional on the jump event topology.  It is
         # reported separately and is never substituted for a likelihood score.
@@ -854,9 +1077,7 @@ class CentralizedInformationEngine:
         )
 
         entropy_rate_a = self.jump.entropy_drift(mass_a_intervals, theta[1]).mean()
-        entropy_rate_b = self.diffusion.entropy_drift(
-            mass_b_intervals, theta[1], theta[2]
-        ).mean()
+        entropy_rate_b = self.diffusion.entropy_drift(mass_b_intervals, theta[1], theta[2]).mean()
 
         return {
             "fisher_a_native": fisher_a,
@@ -866,12 +1087,26 @@ class CentralizedInformationEngine:
             "delta_fisher_common_B_minus_A": delta_fisher,
             "information_a_nats": info_a.detach(),
             "information_b_nats": info_b.detach(),
+            "information_a_by_path_nats": info_a_by_path.detach(),
+            "information_b_by_path_nats": info_b_by_path.detach(),
             "delta_information_B_minus_A_nats": delta_information.detach(),
             "delta_information_pathwise_gradient": delta_pathwise_gradient.detach(),
             "mean_entropy_rate_a": entropy_rate_a.detach(),
             "mean_entropy_rate_b": entropy_rate_b.detach(),
             "a_predictor_status": rate_label,
             "b_predictor_status": signal_label,
+            "diffusion_score_likelihood": "normalized Euler increment likelihood with a censored boundary atom",
+            "fisher_interpretation": "fixed-data score outer products; cutoff-dependent M0 support may be nonregular, and no Cramer-Rao bound is established",
+            "fisher_common_evaluation_points_M0_alpha_eff": torch.stack(
+                (
+                    torch.stack(
+                        (theta[0], theta[1] * _scalar(self.config.hawking_kappa, theta) * c1)
+                    ),
+                    torch.stack((theta[0], theta[2])),
+                )
+            ).detach(),
+            "comparison_scope": "requested A/B laws and different detector channels; a negative residual alone is not a coarse-graining or transfer-entropy conclusion",
+            "uncertainty_status": "not estimated; leave-one-out predictors couple the Monte Carlo replicates",
             "gradient_semantics": (
                 "Fisher uses fixed-data likelihood scores; information gradient is "
                 "pathwise and conditional on the realized jump topology"
@@ -880,7 +1115,7 @@ class CentralizedInformationEngine:
 
 
 def mean_drift_matching(config: PhysicsConfig, like: Tensor) -> dict[str, Tensor]:
-    """Return the exact finite-mixture moment-matching relationships.
+    """Return finite-mixture interior moment-matching relationships.
 
     For the packet model,
 
@@ -889,6 +1124,7 @@ def mean_drift_matching(config: PhysicsConfig, like: Tensor) -> dict[str, Tensor
 
     Therefore the requested sigma_base/M diffusion does not match the packet
     quadratic variation globally.  The matching diffusion scales as M^{-3/2}.
+    Capping emissions changes these local moments near the stopping boundary.
     """
 
     config.validate()
@@ -901,6 +1137,9 @@ def mean_drift_matching(config: PhysicsConfig, like: Tensor) -> dict[str, Tensor
         "planck_second_moment_x": c2,
         "alpha_per_gamma": kappa * c1,
         "matched_diffusion_prefactor_per_sqrt_gamma": kappa * torch.sqrt(c2),
+        "planck_mixture_total_variation_bound": _scalar(
+            1.0 / (2.0 * config.planck_mixture_terms**2), like
+        ),
     }
 
 

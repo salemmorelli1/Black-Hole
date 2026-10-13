@@ -13,8 +13,8 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
 from black_hole_information.artifacts import provenance, write_json_atomic  # noqa: E402
-from black_hole_information.cli import load_experiment_config, make_theta  # noqa: E402
-from black_hole_information.engine import ContinuousMassDiffusion  # noqa: E402
+from black_hole_information.cli import load_experiment_snapshot, make_theta  # noqa: E402
+from black_hole_information.engine import ContinuousMassDiffusion, mean_drift_matching  # noqa: E402
 
 
 def summarize(model, theta, generator, replicates):
@@ -46,7 +46,11 @@ def main() -> int:
     torch.set_default_dtype(torch.float64)
 
     config_path = Path(args.config)
-    config, theta_values, raw = load_experiment_config(config_path)
+    experiment = load_experiment_snapshot(config_path)
+    config, theta_values, raw = experiment.config, experiment.theta_values, experiment.document
+    run_provenance = provenance(
+        config_path, args.seed, args.replicates, config_sha256=experiment.source_sha256
+    )
     theta = make_theta(theta_values, requires_grad=False)
     requested = ContinuousMassDiffusion(config, moment_matched=False)
     matched = ContinuousMassDiffusion(config, moment_matched=True)
@@ -54,13 +58,15 @@ def main() -> int:
     requested_generator = torch.Generator().manual_seed(args.seed)
     matched_generator = torch.Generator().manual_seed(args.seed)
     payload = {
-        "schema_version": "1.0",
+        "schema_version": "2.0",
         "status": "PASS",
         "paradigm": "B_continuous_mass_diffusion",
         "config": raw,
         "requested_B": summarize(requested, theta, requested_generator, args.replicates),
         "moment_matched_B_star": summarize(matched, theta, matched_generator, args.replicates),
-        "provenance": provenance(config_path, args.seed, args.replicates),
+        "alpha_effective_B_star": theta[1] * mean_drift_matching(config, theta)["alpha_per_gamma"],
+        "matched_control_scope": "interior local moments; stopped boundary approximations differ",
+        "provenance": run_provenance,
     }
     output = Path(args.output)
     write_json_atomic(output, payload)

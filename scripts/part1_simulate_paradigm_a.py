@@ -13,7 +13,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
 from black_hole_information.artifacts import provenance, write_json_atomic  # noqa: E402
-from black_hole_information.cli import load_experiment_config, make_theta  # noqa: E402
+from black_hole_information.cli import load_experiment_snapshot, make_theta  # noqa: E402
 from black_hole_information.engine import PacketJumpDiffusion  # noqa: E402
 
 
@@ -31,7 +31,11 @@ def main() -> int:
     torch.set_default_dtype(torch.float64)
 
     config_path = Path(args.config)
-    config, theta_values, raw = load_experiment_config(config_path)
+    experiment = load_experiment_snapshot(config_path)
+    config, theta_values, raw = experiment.config, experiment.theta_values, experiment.document
+    run_provenance = provenance(
+        config_path, args.seed, args.replicates, config_sha256=experiment.source_sha256
+    )
     theta = make_theta(theta_values, requires_grad=False)
     model = PacketJumpDiffusion(config)
     generator = torch.Generator().manual_seed(args.seed)
@@ -48,7 +52,7 @@ def main() -> int:
     counts = torch.tensor(event_counts, dtype=torch.float64)
     masses = torch.stack(final_masses)
     payload = {
-        "schema_version": "1.0",
+        "schema_version": "2.0",
         "status": "PASS",
         "paradigm": "A_discrete_packet_jump_process",
         "config": raw,
@@ -59,7 +63,7 @@ def main() -> int:
             "final_mass_sd": masses.std(unbiased=False),
             "absorbed_fraction": sum(absorbed) / len(absorbed),
         },
-        "provenance": provenance(config_path, args.seed, args.replicates),
+        "provenance": run_provenance,
     }
     output = Path(args.output)
     write_json_atomic(output, payload)

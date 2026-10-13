@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "black-hole-information-dynamics"
-version = "0.1.0"
+version = "0.2.0"
 description = "Differentiable point-process and diffusion experiments for black-hole information dynamics"
 readme = "README.md"
 requires-python = ">=3.11"
